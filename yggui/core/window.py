@@ -40,6 +40,8 @@ class MyApp(Adw.Application):
         self.ygg_pid: int | None = None
         self.socks_pid: int | None = None
         self.socks_config: dict = {}
+        self.switch_locked: bool = False
+        self.pending_switch_state = None
         self.peers: list[str] = []
         self.current_private_key = ""
         self.default_private_key = ""

@@ -14,6 +14,27 @@ from yggui.exec.toggle import (
 from yggui.exec.get_info import get_self_info
 
 
+def drain_pending(app) -> bool:
+    desired = getattr(app, "pending_switch_state", None)
+    app.pending_switch_state = None
+    if desired is None:
+        return False
+    running = app.ygg_pid is not None or app.socks_pid is not None
+    if desired != running:
+        GLib.idle_add(app.switch.set_active, desired)
+    return False
+
+
+def set_switch_lock(app, locked: bool) -> None:
+    app.switch_locked = locked
+    try:
+        app.switch.set_sensitive(not locked)
+        app.switch_row.set_sensitive(not locked)
+        app.ygg_card.set_sensitive(not locked)
+    except Exception:
+        pass
+
+
 def show_error_dialog(app, message: str) -> None:
     dialog = Gtk.MessageDialog(
         transient_for=app.win,
@@ -37,6 +58,8 @@ def on_process_error(app, message: str) -> bool:
     app.ygg_pid = None
     app._set_ip_labels("-", "-")
     app._expand_ipv6_card(False)
+    set_switch_lock(app, False)
+    drain_pending(app)
     return False
 
 
@@ -49,16 +72,28 @@ def poll_for_addresses(app, use_socks) -> None:
         if addr and subnet:
             GLib.idle_add(app._set_ip_labels, addr, subnet)
             GLib.idle_add(update_peer_status, app)
+            GLib.idle_add(set_switch_lock, app, False)
+            GLib.idle_add(drain_pending, app)
             return
         time.sleep(1)
 
     GLib.idle_add(app._set_ip_labels, "-", "-")
     GLib.idle_add(update_peer_status, app)
+    GLib.idle_add(set_switch_lock, app, False)
+    GLib.idle_add(drain_pending, app)
 
 
 def switch_switched(app, _switch, state: bool) -> None:
     use_socks = getattr(app, "socks_config", {}).get("enabled", False)
+    if getattr(app, "switch_locked", False):
+        app.pending_switch_state = state
+        running = app.ygg_pid is not None or app.socks_pid is not None
+        if state is not running:
+            app.switch.set_active(running)
+        return
+
     if state and app.ygg_pid is None and app.socks_pid is None:
+        set_switch_lock(app, True)
         try:
             pid = start_ygg(use_socks, app.socks_config)
             if use_socks:
@@ -80,6 +115,7 @@ def switch_switched(app, _switch, state: bool) -> None:
         Thread(target=poll_for_addresses, args=(app, use_socks), daemon=True).start()
 
     elif not state and (app.ygg_pid is not None or app.socks_pid is not None):
+        set_switch_lock(app, True)
         pid = app.ygg_pid or app.socks_pid
         use_socks = pid is app.socks_pid
         app.ygg_pid = app.socks_pid = None
@@ -89,6 +125,8 @@ def switch_switched(app, _switch, state: bool) -> None:
         app._set_ip_labels("-", "-")
         app._expand_ipv6_card(False)
         clear_peer_status(app)
+        set_switch_lock(app, False)
+        drain_pending(app)
 
     print(f"The switch has been switched {'on' if state else 'off'}")
 
