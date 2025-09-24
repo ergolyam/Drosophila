@@ -37,6 +37,7 @@ def set_switch_lock(app, locked: bool) -> None:
         app.switch.set_sensitive(not locked)
         app.switch_row.set_sensitive(not locked)
         app.ygg_card.set_sensitive(not locked)
+        app.private_key_regen_icon.set_sensitive(not locked)
     except Exception:
         pass
 
