@@ -149,7 +149,10 @@ def rebuild_peers_box(app):
 
     count = len(app.peers)
     if count == 0:
-        app.peers_group.set_description("No peers configured")
+        app.peers_group.set_description(
+            "No peers configured. "
+            "<a href='https://github.com/yggdrasil-network/public-peers'>Browse publicly available peers</a>."
+        )
     else:
         plural = "s" if count != 1 else ""
         app.peers_group.set_description(f"{count} peer node{plural}")
