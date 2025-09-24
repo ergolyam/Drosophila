@@ -226,6 +226,10 @@ def open_add_peer_dialog(app):
             app.peers.append(peer)
             save_peers_to_disk(app)
             rebuild_peers_box(app)
+            if app.ygg_pid is not None or app.socks_pid is not None:
+                from yggui.funcs.ygg import request_ygg_state
+                request_ygg_state(app, False)
+                request_ygg_state(app, True)
             update_peer_status(app)
 
     dialog.connect("response", lambda _d, resp: resp == "add" and _commit())
@@ -246,6 +250,10 @@ def remove_peer(app, peer):
         app.peers.remove(peer)
         save_peers_to_disk(app)
         rebuild_peers_box(app)
+        if app.ygg_pid is not None or app.socks_pid is not None:
+            from yggui.funcs.ygg import request_ygg_state
+            request_ygg_state(app, False)
+            request_ygg_state(app, True)
         update_peer_status(app)
 
 

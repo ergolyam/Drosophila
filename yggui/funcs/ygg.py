@@ -25,6 +25,12 @@ def drain_pending(app) -> bool:
     return False
 
 
+def request_ygg_state(app, desired: bool) -> None:
+    app.pending_switch_state = desired
+    if not getattr(app, "switch_locked", False):
+        GLib.idle_add(app.switch.set_active, desired)
+
+
 def set_switch_lock(app, locked: bool) -> None:
     app.switch_locked = locked
     try:

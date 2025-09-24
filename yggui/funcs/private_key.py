@@ -58,6 +58,10 @@ def regenerate(app):
     app.current_private_key = new_key
     app.private_key_row.set_text(new_key)
     app.private_key_regen_icon.set_visible(True)
+    if app.ygg_pid is not None or app.socks_pid is not None:
+        from yggui.funcs.ygg import request_ygg_state
+        request_ygg_state(app, False)
+        request_ygg_state(app, True)
 
 
 def load_private_key(app):
