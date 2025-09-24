@@ -109,6 +109,7 @@ def rebuild_peers_box(app):
 
     app._peer_rows = {}
     app._peer_icons = {}
+    app._peer_trash_buttons = []
 
     for peer in sorted(app.peers):
         parsed = urlparse(peer)
@@ -139,6 +140,7 @@ def rebuild_peers_box(app):
         row.add_suffix(trash_btn)
 
         trash_btn.connect("clicked", lambda _b, p=peer: remove_peer(app, p))
+        app._peer_trash_buttons.append(trash_btn)
         app.peers_box.append(row)
 
         peer_key = peer.split("?", 1)[0]
@@ -151,6 +153,11 @@ def rebuild_peers_box(app):
     else:
         plural = "s" if count != 1 else ""
         app.peers_group.set_description(f"{count} peer node{plural}")
+
+
+def set_trash_buttons_sensitive(app, sensitive: bool) -> None:
+    for btn in getattr(app, "_peer_trash_buttons", []):
+        btn.set_sensitive(sensitive)
 
 
 def open_add_peer_dialog(app):

@@ -5,7 +5,8 @@ from gi.repository import GLib, Gtk  # type: ignore
 
 from yggui.funcs.peers import (
     update_peer_status,
-    clear_peer_status
+    clear_peer_status,
+    set_trash_buttons_sensitive
 )
 from yggui.exec.toggle import (
     start_ygg,
@@ -38,6 +39,7 @@ def set_switch_lock(app, locked: bool) -> None:
         app.switch_row.set_sensitive(not locked)
         app.ygg_card.set_sensitive(not locked)
         app.private_key_regen_icon.set_sensitive(not locked)
+        set_trash_buttons_sensitive(app, not locked)
     except Exception:
         pass
 
