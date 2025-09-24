@@ -45,6 +45,7 @@
   <url type="vcs-browser">https://github.com/ergolyam/Drosophila</url>
   <url type="bugtracker">https://github.com/ergolyam/Drosophila/issues</url>
   <releases>
+    <release version="1.1.0" date="2025-09-24"/>
     <release version="1.0.0" date="2025-07-23"/>
   </releases>
 </component>
