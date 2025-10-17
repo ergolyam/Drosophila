@@ -23,7 +23,7 @@ build-options:
     - --share=network
 
 modules:
-  - python3-modules.yaml
+  - flatpak/python3-modules.yaml
   - name: yggdrasil
     buildsystem: simple
     build-options:
