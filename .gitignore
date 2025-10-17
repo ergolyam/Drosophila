@@ -12,7 +12,6 @@ _version.py
 
 # Files
 config.json
-yggdrasil*
 
 # Flatpak
 .flatpak-builder/
