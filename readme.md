@@ -27,7 +27,7 @@ python -m yggui
 ```
 
 > **Want to build and run from source?**
-> See the [developer deployment guide](.github/docs/development.md).
+> See the [deployment guide](.github/docs/development.md).
 
 ## Screenshots
 
