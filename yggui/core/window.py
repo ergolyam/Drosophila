@@ -114,7 +114,6 @@ class MyApp(Adw.Application):
         self.peers_group: Adw.PreferencesGroup = builder.get_object("peers_group")
 
         self.socks_card: Adw.ExpanderRow = builder.get_object("socks_card")
-        self.socks_switch: Gtk.Switch = builder.get_object("socks_switch")
         self.socks_listen_row: Adw.EntryRow = builder.get_object("socks_listen_row")
         self.socks_dns_ip_row: Adw.EntryRow = builder.get_object("socks_dns_ip_row")
         self.socks_dns_port_row: Adw.EntryRow = builder.get_object(
@@ -141,13 +140,14 @@ class MyApp(Adw.Application):
             )
             self.ygg_card.connect("notify::expanded", self._card_expanded)
             if Binary.yggstack_path is None:
-                self.socks_switch.set_sensitive(False)
                 self.socks_card.set_sensitive(False)
                 self.socks_card.set_subtitle("Yggstack not found")
             else:
-                self.socks_switch.connect(
-                    "notify::active",
-                    lambda sw, _pspec: socks_switch_toggled(self, sw, sw.get_active()),
+                self.socks_card.connect(
+                    "notify::enable-expansion",
+                    lambda row, _pspec: socks_switch_toggled(
+                        self, row, row.get_enable_expansion()
+                    ),
                 )
                 self.socks_card.connect("notify::expanded", self._socks_card_expanded)
                 self.socks_listen_row.connect(
@@ -230,8 +230,8 @@ class MyApp(Adw.Application):
 
     def _socks_card_expanded(self, _row, _pspec) -> None:
         expanded = self.socks_card.get_expanded()
-        if self.socks_switch.get_active() != expanded:
-            self.socks_switch.set_active(expanded)
+        if self.socks_card.get_enable_expansion() != expanded:
+            self.socks_card.set_enable_expansion(expanded)
 
     def _copy_to_clipboard(self, text: str) -> None:
         if not text or text == "-":

@@ -40,7 +40,7 @@ def load_socks_config(app):
         "dns_ip": dns_ip,
         "dns_port": dns_port,
     }
-    app.socks_switch.set_active(enabled)
+    app.socks_card.set_enable_expansion(enabled)
     app.socks_card.set_subtitle("Enabled" if enabled else "Disabled")
     app.socks_listen_row.set_text(listen)
     app.socks_dns_ip_row.set_text(dns_ip)
@@ -48,16 +48,11 @@ def load_socks_config(app):
     app.socks_card.set_expanded(enabled)
 
 
-def socks_switch_toggled(app, _switch, state: bool):
+def socks_switch_toggled(app, _row, state: bool):
     save_param("yggstack-enable", state)
     app.socks_card.set_subtitle("Enabled" if state else "Disabled")
     app.socks_card.set_expanded(state)
     app.socks_config["enabled"] = state
-    if Binary.pkexec_path is None:
-        app.ygg_switch.set_sensitive(state)
-        app.ygg_card.set_sensitive(state)
-        subtitle = "Stopped" if state else "Polkit not found"
-        app.ygg_card.set_subtitle(subtitle)
 
 
 def listen_changed(app, _row, _pspec):
