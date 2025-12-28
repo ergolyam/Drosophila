@@ -53,7 +53,6 @@ class Runtime:
 class Binary:
     ygg_path = shutil.which('yggdrasil')
     yggctl_path = shutil.which('yggdrasilctl')
-    yggctl_path_stack = yggctl_path
     yggstack_path = shutil.which('yggstack')
     pkexec_path = shutil.which('pkexec')
     if Runtime.is_flatpak or Runtime.is_appimage:

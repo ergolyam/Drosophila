@@ -32,11 +32,6 @@ class MyApp(Adw.Application):
         self.connect("shutdown", self.on_shutdown)
         signal.signal(signal.SIGINT, lambda _sig, _frm: self._on_sigint())
 
-        self.GBox = Gtk.Box
-        self.GEntry = Gtk.Entry
-        self.GCheckButton = Gtk.CheckButton
-        self.GOrientation = Gtk.Orientation
-
         self.ygg_pid: int | None = None
         self.socks_pid: int | None = None
         self.socks_config: dict = {}
@@ -64,7 +59,6 @@ class MyApp(Adw.Application):
         builder.add_from_file(str(Gui.ui_file))
         builder.add_from_file(str(Gui.ui_main_file))
         builder.add_from_file(str(Gui.ui_settings_file))
-        builder.add_from_file(str(Gui.about_ui_file))
 
         self.win: Adw.ApplicationWindow = builder.get_object("main_window")
         self.win.set_application(self)
@@ -93,11 +87,6 @@ class MyApp(Adw.Application):
         self.address_row: Adw.ActionRow = builder.get_object("address_row")
         self.subnet_row: Adw.ActionRow = builder.get_object("subnet_row")
 
-        self.address_copy_icon: Gtk.Image = builder.get_object("address_copy_icon")
-        self.subnet_copy_icon: Gtk.Image = builder.get_object("subnet_copy_icon")
-
-        self.ygg_card.set_enable_expansion(False)
-        self.ygg_card.set_expanded(False)
         self._set_ip_labels("-", "-")
         self._expand_ipv6_card(False)
 

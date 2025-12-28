@@ -135,8 +135,6 @@ def switch_switched(app, _switch, state: bool) -> None:
         set_switch_lock(app, False)
         drain_pending(app)
 
-    print(f"The switch has been switched {'on' if state else 'off'}")
-
 
 if __name__ == "__main__":
     raise RuntimeError("This module should be run only via main.py")

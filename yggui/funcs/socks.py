@@ -31,7 +31,6 @@ def load_socks_config(app):
     dns_port = cfg.get("yggstack-dns-port", "53")
     if Binary.yggstack_path is None:
         enabled = False
-        app.socks_switch.set_sensitive(False)
         app.socks_card.set_sensitive(False)
         app.socks_card.set_subtitle("Yggstack not found")
     app.socks_config = {

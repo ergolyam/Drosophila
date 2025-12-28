@@ -108,7 +108,6 @@ def rebuild_peers_box(app):
         app.peers_box.remove(child)
         child = nxt
 
-    app._peer_rows = {}
     app._peer_icons = {}
     app._peer_trash_buttons = []
 
@@ -145,7 +144,6 @@ def rebuild_peers_box(app):
         app.peers_box.append(row)
 
         peer_key = peer.split("?", 1)[0]
-        app._peer_rows[peer_key] = row
         app._peer_icons[peer_key] = (image_widget, icon_name)
 
     count = len(app.peers)
