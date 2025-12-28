@@ -5,9 +5,12 @@ from yggui.exec.pkexec_shell import PkexecShell
 
 
 def get_self_info(use_socks) -> tuple[str | None, str | None]:
+    if not Runtime.admin_socket.exists():
+        return None, None
+
     cmd = (
         f"{Binary.yggctl_path} -json "
-        f"-endpoint=unix://{Runtime.admin_socket} getSelf"
+        f"-endpoint=unix://{str(Runtime.admin_socket)} getSelf"
     )
     if not use_socks:
         runner = PkexecShell
@@ -22,9 +25,12 @@ def get_self_info(use_socks) -> tuple[str | None, str | None]:
 
 
 def get_peers_status(use_socks) -> dict[str, bool]:
+    if not Runtime.admin_socket.exists():
+        return {}
+
     cmd = (
         f"{Binary.yggctl_path} -json "
-        f"-endpoint=unix://{Runtime.admin_socket} getPeers"
+        f"-endpoint=unix://{str(Runtime.admin_socket)} getPeers"
     )
     def _parse_output(output: str) -> dict[str, bool]:
         data = json.loads(output)

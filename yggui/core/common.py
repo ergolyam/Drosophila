@@ -42,7 +42,7 @@ class Runtime:
     is_appimage = os.getenv("APPIMAGE") is not None
     runtime_dir = Path(os.environ.get('XDG_RUNTIME_DIR', '/tmp')) / 'yggui'
     runtime_dir.mkdir(parents=True, exist_ok=True)
-    admin_socket = str(runtime_dir / 'yggdrasil.sock')
+    admin_socket = runtime_dir / 'yggdrasil.sock'
     config_path = xdg_config('yggui') / 'config.json'
     try:
         version = version("Drosophila")
