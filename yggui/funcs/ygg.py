@@ -22,21 +22,19 @@ def drain_pending(app) -> bool:
         return False
     running = app.ygg_pid is not None or app.socks_pid is not None
     if desired != running:
-        GLib.idle_add(app.switch.set_active, desired)
+        GLib.idle_add(app.ygg_card.set_enable_expansion, desired)
     return False
 
 
 def request_ygg_state(app, desired: bool) -> None:
     app.pending_switch_state = desired
     if not getattr(app, "switch_locked", False):
-        GLib.idle_add(app.switch.set_active, desired)
+        GLib.idle_add(app.ygg_card.set_enable_expansion, desired)
 
 
 def set_switch_lock(app, locked: bool) -> None:
     app.switch_locked = locked
     try:
-        app.switch.set_sensitive(not locked)
-        app.switch_row.set_sensitive(not locked)
         app.ygg_card.set_sensitive(not locked)
         app.private_key_regen_icon.set_sensitive(not locked)
         set_trash_buttons_sensitive(app, not locked)
@@ -60,8 +58,8 @@ def show_error_dialog(app, message: str) -> None:
 def on_process_error(app, message: str) -> bool:
     show_error_dialog(app, message)
 
-    if app.switch.get_active():
-        app.switch.set_active(False)
+    if app.ygg_card.get_enable_expansion():
+        app.ygg_card.set_enable_expansion(False)
 
     app.switch_row.set_subtitle("Stopped")
     app.ygg_pid = None
@@ -98,7 +96,7 @@ def switch_switched(app, _switch, state: bool) -> None:
         app.pending_switch_state = state
         running = app.ygg_pid is not None or app.socks_pid is not None
         if state is not running:
-            app.switch.set_active(running)
+            app.ygg_card.set_enable_expansion(running)
         return
 
     if state and app.ygg_pid is None and app.socks_pid is None:

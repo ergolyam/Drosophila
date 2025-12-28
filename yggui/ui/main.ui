@@ -16,14 +16,9 @@
               <object class="AdwExpanderRow" id="ygg_card">
                 <property name="title">Yggdrasil</property>
                 <property name="subtitle">Stopped</property>
+                <property name="show-enable-switch">True</property>
+                <property name="enable-expansion">False</property>
                 <property name="expanded">False</property>
-
-                <child type="suffix">
-                  <object class="GtkSwitch" id="ygg_switch">
-                    <property name="active">False</property>
-                    <property name="valign">center</property>
-                  </object>
-                </child>
 
                 <child>
                   <object class="GtkBox" id="ipv6_box">

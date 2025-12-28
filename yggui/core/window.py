@@ -88,9 +88,6 @@ class MyApp(Adw.Application):
         page_settings.set_icon_name("emblem-system-symbolic")
 
         self.ygg_card: Adw.ExpanderRow = builder.get_object("ygg_card")
-        self.ygg_switch: Gtk.Switch = builder.get_object("ygg_switch")
-
-        self.switch = self.ygg_switch
         self.switch_row = self.ygg_card
 
         self.address_row: Adw.ActionRow = builder.get_object("address_row")
@@ -99,7 +96,8 @@ class MyApp(Adw.Application):
         self.address_copy_icon: Gtk.Image = builder.get_object("address_copy_icon")
         self.subnet_copy_icon: Gtk.Image = builder.get_object("subnet_copy_icon")
 
-        self.ygg_switch.set_active(False)
+        self.ygg_card.set_enable_expansion(False)
+        self.ygg_card.set_expanded(False)
         self._set_ip_labels("-", "-")
         self._expand_ipv6_card(False)
 
@@ -124,19 +122,19 @@ class MyApp(Adw.Application):
         self._make_row_clickable(self.subnet_row, lambda: self.subnet_row.get_subtitle())
 
         if Binary.pkexec_path is None:
-            self.ygg_switch.set_sensitive(False)
             self.ygg_card.set_sensitive(False)
             self.ygg_card.set_subtitle("Polkit not found")
 
         if Binary.ygg_path is None:
-            self.ygg_switch.set_sensitive(False)
             self.ygg_card.set_sensitive(False)
             self.ygg_card.set_subtitle("Yggdrasil not found")
         else:
             create_config()
-            self.ygg_switch.connect(
-                "notify::active",
-                lambda sw, _pspec: switch_switched(self, sw, sw.get_active()),
+            self.ygg_card.connect(
+                "notify::enable-expansion",
+                lambda row, _pspec: switch_switched(
+                    self, row, row.get_enable_expansion()
+                ),
             )
             self.ygg_card.connect("notify::expanded", self._card_expanded)
             if Binary.yggstack_path is None:
@@ -225,8 +223,8 @@ class MyApp(Adw.Application):
 
     def _card_expanded(self, _row, _pspec) -> None:
         expanded = self.ygg_card.get_expanded()
-        if self.ygg_switch.get_active() != expanded:
-            self.ygg_switch.set_active(expanded)
+        if self.ygg_card.get_enable_expansion() != expanded:
+            self.ygg_card.set_enable_expansion(expanded)
 
     def _socks_card_expanded(self, _row, _pspec) -> None:
         expanded = self.socks_card.get_expanded()
