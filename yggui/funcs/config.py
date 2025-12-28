@@ -24,9 +24,14 @@ class ConfigManager:
         self._admin_socket = Path(admin_socket)
         self._auto_init = auto_init
         self._lock = RLock()
+        self._initialized = False
+        self._cache: dict[str, Any] | None = None
+        self._cache_mtime_ns: int | None = None
 
     def ensure_initialized(self) -> None:
         with self._lock:
+            if self._initialized and self.path.exists():
+                return
             self.path.parent.mkdir(parents=True, exist_ok=True)
 
             current: dict[str, Any] = {}
@@ -60,16 +65,19 @@ class ConfigManager:
 
             if (not self.path.exists()) or current:
                 self._save_unlocked(current)
+            self._initialized = True
 
     def load(self) -> dict[str, Any]:
         with self._lock:
             self._maybe_init_unlocked()
-            return self._load_unlocked(strict=False)
+            return dict(self._load_cached_unlocked())
 
     def save(self, cfg: dict[str, Any]) -> None:
         with self._lock:
             self._maybe_init_unlocked()
             self._save_unlocked(cfg)
+            self._cache = dict(cfg)
+            self._cache_mtime_ns = self._stat_mtime_ns_unlocked()
 
     def get(self, key: str, default: Any = None) -> Any:
         return self.load().get(key, default)
@@ -77,19 +85,23 @@ class ConfigManager:
     def set(self, key: str, value: Any) -> None:
         with self._lock:
             self._maybe_init_unlocked()
-            cfg = self._load_unlocked(strict=False)
+            cfg = self._load_cached_unlocked()
             cfg[key] = value
             self._save_unlocked(cfg)
+            self._cache = dict(cfg)
+            self._cache_mtime_ns = self._stat_mtime_ns_unlocked()
 
     def update(self, mapping: dict[str, Any] | None = None, **kwargs: Any) -> None:
         with self._lock:
             self._maybe_init_unlocked()
-            cfg = self._load_unlocked(strict=False)
+            cfg = self._load_cached_unlocked()
             if mapping:
                 cfg.update(mapping)
             if kwargs:
                 cfg.update(kwargs)
             self._save_unlocked(cfg)
+            self._cache = dict(cfg)
+            self._cache_mtime_ns = self._stat_mtime_ns_unlocked()
 
     def __getitem__(self, key: str) -> Any:
         return self.get(key)
@@ -100,6 +112,22 @@ class ConfigManager:
     def _maybe_init_unlocked(self) -> None:
         if self._auto_init:
             self.ensure_initialized()
+
+    def _stat_mtime_ns_unlocked(self) -> int | None:
+        try:
+            return self.path.stat().st_mtime_ns
+        except Exception:
+            return None
+
+    def _load_cached_unlocked(self) -> dict[str, Any]:
+        mtime = self._stat_mtime_ns_unlocked()
+        if self._cache is not None and mtime is not None and mtime == self._cache_mtime_ns:
+            return dict(self._cache)
+
+        data = self._load_unlocked(strict=False)
+        self._cache = dict(data)
+        self._cache_mtime_ns = mtime
+        return dict(data)
 
     def _desired_admin_listen(self) -> str:
         return f"unix://{self._admin_socket}"
