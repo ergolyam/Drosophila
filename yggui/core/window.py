@@ -8,7 +8,6 @@ gi.require_version("Adw", "1")
 from gi.repository import Gtk, Adw, Gdk, Gio  # type: ignore
 
 from yggui.core.common import Gui, Binary, get_app_info, Runtime
-from yggui.funcs.config import create_config
 from yggui.funcs.peers import load_config
 from yggui.exec.pkexec_shell import PkexecShell
 from yggui.exec.shell import Shell
@@ -118,7 +117,6 @@ class MyApp(Adw.Application):
             self.ygg_card.set_sensitive(False)
             self.ygg_card.set_subtitle("Yggdrasil not found")
         else:
-            create_config()
             self.ygg_card.connect(
                 "notify::enable-expansion",
                 lambda row, _pspec: switch_switched(

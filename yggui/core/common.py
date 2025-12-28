@@ -1,4 +1,5 @@
 import shutil, os, subprocess, re, logging
+from yggui.funcs.config import ConfigManager
 from importlib.metadata import version, PackageNotFoundError
 from pathlib import Path
 from importlib.resources import files
@@ -44,6 +45,7 @@ class Runtime:
     runtime_dir.mkdir(parents=True, exist_ok=True)
     admin_socket = runtime_dir / 'yggdrasil.sock'
     config_path = xdg_config('yggui') / 'config.json'
+    config: ConfigManager
     try:
         version = version("Drosophila")
     except PackageNotFoundError:

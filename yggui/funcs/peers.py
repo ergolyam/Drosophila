@@ -1,4 +1,4 @@
-import json, time
+import time
 from threading import Thread
 
 from gi.repository import Gtk, Adw, GLib # type: ignore
@@ -53,27 +53,6 @@ def clear_peer_status(app) -> bool:
     app._stop_peer_status_thread = True
     app._peer_status_thread_running = False
     return False
-
-
-def read_config():
-    if Runtime.config_path.exists():
-        try:
-            with open(Runtime.config_path, "r", encoding="utf-8") as handle:
-                return json.load(handle)
-        except Exception:
-            return {}
-    return {}
-
-
-def write_config(cfg):
-    with open(Runtime.config_path, "w", encoding="utf-8") as handle:
-        json.dump(cfg, handle, indent=2)
-
-
-def save_peers_to_disk(app):
-    cfg = read_config()
-    cfg["Peers"] = app.peers
-    write_config(cfg)
 
 
 def build_proto_widget(proto: str) -> tuple[Gtk.Widget, str, Gtk.Image]:
@@ -233,7 +212,7 @@ def open_add_peer_dialog(app):
 
         if peer not in app.peers:
             app.peers.append(peer)
-            save_peers_to_disk(app)
+            Runtime.config.set("Peers", app.peers)
             rebuild_peers_box(app)
             if app.ygg_pid is not None or app.socks_pid is not None:
                 from yggui.funcs.ygg import request_ygg_state
@@ -246,7 +225,7 @@ def open_add_peer_dialog(app):
 
 
 def load_config(app):
-    cfg = read_config()
+    cfg = Runtime.config.load()
     app.peers = cfg.get("Peers", [])
     rebuild_peers_box(app)
     if not getattr(app, "_add_btn_connected", False):
@@ -257,7 +236,7 @@ def load_config(app):
 def remove_peer(app, peer):
     if peer in app.peers:
         app.peers.remove(peer)
-        save_peers_to_disk(app)
+        Runtime.config.set("Peers", app.peers)
         rebuild_peers_box(app)
         if app.ygg_pid is not None or app.socks_pid is not None:
             from yggui.funcs.ygg import request_ygg_state

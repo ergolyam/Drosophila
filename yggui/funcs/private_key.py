@@ -1,23 +1,7 @@
-import json
-import subprocess
+import subprocess, json
 
 from yggui.core.common import Runtime, Binary
 from gi.repository import Gtk  # type: ignore
-
-
-def read_config():
-    if Runtime.config_path.exists():
-        try:
-            with open(Runtime.config_path, "r", encoding="utf-8") as handle:
-                return json.load(handle)
-        except Exception:
-            return {}
-    return {}
-
-
-def write_config(cfg):
-    with open(Runtime.config_path, "w", encoding="utf-8") as handle:
-        json.dump(cfg, handle, indent=2)
 
 
 def on_text_changed(app, _row, _pspec):
@@ -25,9 +9,7 @@ def on_text_changed(app, _row, _pspec):
     new_val = app.private_key_row.get_text().strip()
     if not new_val:
         return
-    cfg = read_config()
-    cfg["PrivateKey"] = new_val
-    write_config(cfg)
+    Runtime.config.set("PrivateKey", new_val)
     app.current_private_key = new_val
 
 
@@ -51,9 +33,7 @@ def regenerate(app):
     if not new_key:
         return
 
-    cfg = read_config()
-    cfg["PrivateKey"] = new_key
-    write_config(cfg)
+    Runtime.config.set("PrivateKey", new_key)
 
     app.current_private_key = new_key
     app.private_key_row.set_text(new_key)
@@ -65,7 +45,7 @@ def regenerate(app):
 
 
 def load_private_key(app):
-    cfg = read_config()
+    cfg = Runtime.config.load()
     current_key = cfg.get("PrivateKey", "")
 
     app.current_private_key = current_key

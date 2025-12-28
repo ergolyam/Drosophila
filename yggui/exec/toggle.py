@@ -4,6 +4,7 @@ from yggui.exec.pkexec_shell import PkexecShell
 
 
 def start_ygg(use_socks: bool, socks_args) -> int:
+    Runtime.config.ensure_initialized()
     cmd = []
     if not use_socks:
         runner = PkexecShell
