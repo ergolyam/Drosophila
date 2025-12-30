@@ -1,7 +1,7 @@
 import time
 from threading import Thread
 
-from gi.repository import GLib, Gtk  # type: ignore
+from gi.repository import GLib, Gtk, Adw  # type: ignore
 
 from yggui.funcs.peers import (
     update_peer_status,
@@ -12,6 +12,7 @@ from yggui.exec.toggle import (
     start_ygg,
     stop_ygg
 )
+from yggui.exec.shell import Shell
 from yggui.exec.get_info import get_self_info
 
 
@@ -43,31 +44,46 @@ def set_switch_lock(app, locked: bool) -> None:
 
 
 def show_error_dialog(app, message: str) -> None:
-    dialog = Gtk.MessageDialog(
-        transient_for=app.win,
-        modal=True,
-        buttons=Gtk.ButtonsType.OK,
-        message_type=Gtk.MessageType.ERROR,
-        text="Error while running Yggdrasil",
-        secondary_text=message,
+    dialog = Adw.AlertDialog(
+        heading="Yggdrasil Error",
+        body=message,
+        close_response="ok"
     )
-    dialog.connect("response", lambda d, _r: d.destroy())
-    dialog.show()
+    dialog.add_response("ok", "OK")
+    dialog.present(app.win)
 
 
 def on_process_error(app, message: str) -> bool:
-    show_error_dialog(app, message)
-
+    app.ygg_pid = None
+    app.socks_pid = None
     if app.ygg_card.get_enable_expansion():
         app.ygg_card.set_enable_expansion(False)
-
     app.switch_row.set_subtitle("Stopped")
-    app.ygg_pid = None
     app._set_ip_labels("-", "-")
     app._expand_ipv6_card(False)
     set_switch_lock(app, False)
     drain_pending(app)
+    show_error_dialog(app, message)
     return False
+
+
+def _monitor_process(app, pid: int, use_socks: bool) -> None:
+    time.sleep(1)
+    while True:
+        current_pid = app.socks_pid if use_socks else app.ygg_pid
+        if current_pid != pid:
+            return
+
+        is_running = Shell.is_alive(pid, as_root=not use_socks)
+        if not is_running:
+            current_pid = app.socks_pid if use_socks else app.ygg_pid
+            if current_pid == pid:
+                ygg_app = 'Yggstack' if use_socks else 'Yggdrasil'
+                msg = f"The {ygg_app} process exited unexpectedly." 
+                GLib.idle_add(on_process_error, app, msg)
+            return
+
+        time.sleep(2)
 
 
 def poll_for_addresses(app, use_socks) -> None:
@@ -108,10 +124,11 @@ def switch_switched(app, _switch, state: bool) -> None:
             else:
                 app.ygg_pid = pid
         except Exception as exc:
+            ygg_app = 'Yggstack' if use_socks else 'Yggdrasil'
             GLib.idle_add(
                 on_process_error,
                 app,
-                f"Failed to start {'Yggstack' if use_socks else 'Yggdrasil'}: {exc}",
+                f"Failed to start {ygg_app}: {exc}",
             )
             return
 
@@ -120,6 +137,7 @@ def switch_switched(app, _switch, state: bool) -> None:
         app._expand_ipv6_card(True)
 
         Thread(target=poll_for_addresses, args=(app, use_socks), daemon=True).start()
+        Thread(target=_monitor_process, args=(app, pid, use_socks), daemon=True).start()
 
     elif not state and (app.ygg_pid is not None or app.socks_pid is not None):
         set_switch_lock(app, True)

@@ -119,6 +119,15 @@ class Shell:
                 proc.stdin.flush()
 
     @classmethod
+    def is_alive(cls, pid: int, as_root: bool = False) -> bool:
+        cmd = f"kill -0 {pid} 2>/dev/null && echo __ALIVE__"
+        try:
+            output = cls.run_capture(cmd, timeout=2.0, as_root=as_root)
+            return "__ALIVE__" in output
+        except Exception:
+            return False
+
+    @classmethod
     def stop(cls, as_root: bool = False) -> None:
         lock = cls._locks[as_root]
         with lock:
