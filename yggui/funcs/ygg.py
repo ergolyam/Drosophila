@@ -68,20 +68,28 @@ def on_process_error(app, message: str) -> bool:
 
 
 def _monitor_process(app, pid: int, use_socks: bool) -> None:
-    time.sleep(1)
+    time.sleep(2)
+    
+    failures = 0
+    max_failures = 3
+
     while True:
         current_pid = app.socks_pid if use_socks else app.ygg_pid
         if current_pid != pid:
             return
 
         is_running = Shell.is_alive(pid, as_root=not use_socks)
-        if not is_running:
-            current_pid = app.socks_pid if use_socks else app.ygg_pid
-            if current_pid == pid:
-                ygg_app = 'Yggstack' if use_socks else 'Yggdrasil'
-                msg = f"The {ygg_app} process exited unexpectedly." 
-                GLib.idle_add(on_process_error, app, msg)
-            return
+        if is_running:
+            failures = 0
+        else:
+            failures += 1
+            if failures >= max_failures:
+                current_pid = app.socks_pid if use_socks else app.ygg_pid
+                if current_pid == pid:
+                    ygg_app = 'Yggstack' if use_socks else 'Yggdrasil'
+                    msg = f"The {ygg_app} process exited unexpectedly."
+                    GLib.idle_add(on_process_error, app, msg)
+                return
 
         time.sleep(2)
 
