@@ -9,7 +9,6 @@ from gi.repository import Gtk, Adw, Gdk, Gio  # type: ignore
 
 from yggui.core.common import Gui, Binary, get_app_info, Runtime
 from yggui.funcs.peers import load_config
-from yggui.exec.pkexec_shell import PkexecShell
 from yggui.exec.shell import Shell
 from yggui.funcs.private_key import load_private_key
 from yggui.funcs.ygg import switch_switched
@@ -176,13 +175,13 @@ class MyApp(Adw.Application):
         self.about_dialog.present()
 
     def on_shutdown(self, _app):
-        runner = PkexecShell if self.ygg_pid else Shell
         pid = self.ygg_pid or self.socks_pid
         use_socks = pid is self.socks_pid
         self.ygg_pid = self.socks_pid = None
         if pid:
             stop_ygg(use_socks, pid)
-        runner.stop()
+        Shell.stop(as_root=False)
+        Shell.stop(as_root=True)
 
     def _on_sigint(self):
         pid = self.ygg_pid or self.socks_pid

@@ -1,7 +1,6 @@
 import json
 from yggui.core.common import Binary, Runtime
 from yggui.exec.shell import Shell
-from yggui.exec.pkexec_shell import PkexecShell
 
 
 def get_self_info(use_socks) -> tuple[str | None, str | None]:
@@ -12,12 +11,9 @@ def get_self_info(use_socks) -> tuple[str | None, str | None]:
         f"{Binary.yggctl_path} -json "
         f"-endpoint=unix://{str(Runtime.admin_socket)} getSelf"
     )
-    if not use_socks:
-        runner = PkexecShell
-    else:
-        runner = Shell
+    as_root = not use_socks
     try:
-        output = runner.run_capture(cmd)
+        output = Shell.run_capture(cmd, as_root=as_root)
         data = json.loads(output)
         return data.get("address"), data.get("subnet")
     except Exception:
@@ -32,6 +28,7 @@ def get_peers_status(use_socks) -> dict[str, bool]:
         f"{Binary.yggctl_path} -json "
         f"-endpoint=unix://{str(Runtime.admin_socket)} getPeers"
     )
+    as_root = not use_socks
     def _parse_output(output: str) -> dict[str, bool]:
         data = json.loads(output)
         status: dict[str, bool] = {}
@@ -40,12 +37,8 @@ def get_peers_status(use_socks) -> dict[str, bool]:
             if remote:
                 status[remote.split("?", 1)[0]] = bool(entry.get("up"))
         return status
-    if not use_socks:
-        runner = PkexecShell
-    else:
-        runner = Shell
     try:
-        output = runner.run_capture(cmd)
+        output = Shell.run_capture(cmd, as_root=as_root)
         return _parse_output(output)
     except Exception:
         return {}

@@ -1,18 +1,27 @@
 import subprocess
 import time
-from yggui.core.common import get_logger
 from threading import Lock
+from yggui.core.common import Runtime, Binary, get_logger
+
 log = get_logger(__name__)
 
 
 class Shell:
-    _proc: subprocess.Popen[str] | None = None
-    _lock: Lock = Lock()
+    _procs: dict[bool, subprocess.Popen[str] | None] = {False: None, True: None}
+    _locks: dict[bool, Lock] = {False: Lock(), True: Lock()}
 
     @classmethod
-    def _spawn_shell(cls) -> subprocess.Popen[str]:
+    def _spawn_shell(cls, as_root: bool) -> subprocess.Popen[str]:
+        cmd = []
+        if as_root:
+            if Runtime.is_flatpak:
+                cmd.extend(["flatpak-spawn", "--host"])
+            cmd.extend([str(Binary.pkexec_path), "--disable-internal-agent", "/bin/sh"])
+        else:
+            cmd.append("/bin/sh")
+
         return subprocess.Popen(
-            ['/bin/sh'],
+            cmd,
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
@@ -21,15 +30,18 @@ class Shell:
         )
 
     @classmethod
-    def _ensure_shell(cls) -> subprocess.Popen[str]:
-        with cls._lock:
-            if cls._proc is None or cls._proc.poll() is not None:
-                cls._proc = cls._spawn_shell()
-            return cls._proc
+    def _ensure_shell(cls, as_root: bool) -> subprocess.Popen[str]:
+        lock = cls._locks[as_root]
+        with lock:
+            proc = cls._procs[as_root]
+            if proc is None or proc.poll() is not None:
+                proc = cls._spawn_shell(as_root)
+                cls._procs[as_root] = proc
+            return proc
 
     @classmethod
-    def run_capture(cls, command: str, timeout: float = 15.0) -> str:
-        proc = cls._ensure_shell()
+    def run_capture(cls, command: str, timeout: float = 15.0, as_root: bool = False) -> str:
+        proc = cls._ensure_shell(as_root)
 
         stdin = proc.stdin
         stdout = proc.stdout
@@ -38,12 +50,20 @@ class Shell:
 
         marker = f"__YGGUI_DONE_{time.time_ns()}__"
 
-        stdin.write(f"{command}; echo {marker}\n")
-        stdin.flush()
+        try:
+            stdin.write(f"{command}; echo {marker}\n")
+            stdin.flush()
+        except BrokenPipeError:
+            cls.stop(as_root)
+            return cls.run_capture(command, timeout, as_root)
 
         output_lines: list[str] = []
         start = time.time()
-        for line in iter(stdout.readline, ""):
+        
+        while True:
+            line = stdout.readline()
+            if not line:
+                break
             if line.strip() == marker:
                 break
             log.info(line.rstrip("\n"))
@@ -54,8 +74,8 @@ class Shell:
         return "".join(output_lines)
 
     @classmethod
-    def run_background(cls, command: str) -> int:
-        proc = cls._ensure_shell()
+    def run_background(cls, command: str, as_root: bool = False) -> int:
+        proc = cls._ensure_shell(as_root)
 
         stdin = proc.stdin
         stdout = proc.stdout
@@ -64,10 +84,17 @@ class Shell:
 
         sentinel = "__YGGUI_PID__"
 
-        stdin.write(f"{command} & echo $! {sentinel}\n")
-        stdin.flush()
+        try:
+            stdin.write(f"{command} & echo $! {sentinel}\n")
+            stdin.flush()
+        except BrokenPipeError:
+            cls.stop(as_root)
+            return cls.run_background(command, as_root)
 
-        for line in iter(stdout.readline, ""):
+        while True:
+            line = stdout.readline()
+            if not line:
+                break
             if sentinel in line:
                 return int(line.split()[0])
             log.info(line.rstrip("\n"))
@@ -75,28 +102,37 @@ class Shell:
         raise RuntimeError("Failed to capture background PID")
 
     @classmethod
-    def run(cls, command: str) -> None:
-        proc = cls._ensure_shell()
+    def run(cls, command: str, as_root: bool = False) -> None:
+        proc = cls._ensure_shell(as_root)
 
         stdin = proc.stdin
         assert stdin is not None
 
-        stdin.write(f"{command}\n")
-        stdin.flush()
+        try:
+            stdin.write(f"{command}\n")
+            stdin.flush()
+        except BrokenPipeError:
+            cls.stop(as_root)
+            proc = cls._ensure_shell(as_root)
+            if proc.stdin:
+                proc.stdin.write(f"{command}\n")
+                proc.stdin.flush()
 
     @classmethod
-    def stop(cls) -> None:
-        with cls._lock:
-            if cls._proc and cls._proc.poll() is None:
+    def stop(cls, as_root: bool = False) -> None:
+        lock = cls._locks[as_root]
+        with lock:
+            proc = cls._procs[as_root]
+            if proc and proc.poll() is None:
                 try:
-                    stdin = cls._proc.stdin
+                    stdin = proc.stdin
                     assert stdin is not None
                     stdin.write("exit\n")
                     stdin.flush()
-                    cls._proc.wait(timeout=3)
+                    proc.wait(timeout=3)
                 except Exception:
-                    cls._proc.kill()
-            cls._proc = None
+                    proc.kill()
+            cls._procs[as_root] = None
 
 
 if __name__ == "__main__":
