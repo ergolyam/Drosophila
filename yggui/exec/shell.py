@@ -69,6 +69,8 @@ class Shell:
                 proc = cls._ensure_shell(as_root)
                 stdin = proc.stdin
                 stdout = proc.stdout
+                assert stdin is not None
+                assert stdout is not None
                 if stdin:
                     stdin.write(f"{command}; echo {marker}\n")
                     stdin.flush()
@@ -112,6 +114,8 @@ class Shell:
                 proc = cls._ensure_shell(as_root)
                 stdin = proc.stdin
                 stdout = proc.stdout
+                assert stdin is not None
+                assert stdout is not None
                 if stdin:
                     stdin.write(f"{command} & echo $! {sentinel}\n")
                     stdin.flush()
