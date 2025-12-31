@@ -93,6 +93,7 @@ jobs:
           if [ -d "old-pages/repo" ]; then
             echo "Found existing repo, copying..."
             cp -r old-pages/repo .
+            mkdir -p repo/refs/remotes repo/refs/mirrors
           else
             echo "No existing repo found, initializing new..."
             mkdir repo
