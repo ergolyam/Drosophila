@@ -74,19 +74,34 @@ jobs:
           pattern: repo-*
           path: repos
 
+      - name: Checkout existing repo (gh-pages)
+        uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+          path: old-pages
+        continue-on-error: true
+
       - name: Merge repos into one
         run: |
-          mkdir repo
-          ostree --repo=./repo init --mode=archive-z2
+          if [ -d "old-pages/repo" ]; then
+            echo "Found existing repo, copying..."
+            cp -r old-pages/repo .
+          else
+            echo "No existing repo found, initializing new..."
+            mkdir repo
+            ostree --repo=./repo init --mode=archive-z2
+          fi
           for src in ./repos/repo-*; do
             mkdir -p $src/refs/remotes $src/refs/mirrors
             ref=$(ostree refs --repo=$src)
+            echo "Pulling $ref from $src..."
             ostree pull-local $src $ref --repo=./repo
           done
           flatpak build-update-repo \
             --gpg-sign=${{ steps.gpg-key.outputs.fingerprint }} \
             --gpg-import=pubkey.gpg \
             --generate-static-deltas \
+            --prune \
             ./repo
 
       - name: Set the root of the repository
