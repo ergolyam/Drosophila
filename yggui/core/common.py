@@ -43,6 +43,8 @@ class Runtime:
     is_appimage = os.getenv("APPIMAGE") is not None
     runtime_dir = Path(os.environ.get('XDG_RUNTIME_DIR', '/tmp')) / 'yggui'
     runtime_dir.mkdir(parents=True, exist_ok=True)
+    bin_dir = Path(os.environ.get('XDG_DATA_HOME', Path.home() / '.local/share')) / 'yggui'
+    bin_dir.mkdir(parents=True, exist_ok=True)
     admin_socket = runtime_dir / 'yggdrasil.sock'
     config_path = xdg_config('yggui') / 'config.json'
     config: ConfigManager
@@ -61,12 +63,14 @@ class Binary:
         if Runtime.is_flatpak:
             pkexec_path = which_in_flatpak('pkexec')
         if ygg_path:
-            dst = Runtime.runtime_dir / 'yggdrasil'
-            shutil.copy2(ygg_path, dst)
+            dst = Runtime.bin_dir / 'yggdrasil'
+            if not dst.exists():
+                shutil.copy2(ygg_path, dst)
             ygg_path = str(dst)
         if yggctl_path:
-            dst = Runtime.runtime_dir / 'yggdrasilctl'
-            shutil.copy2(yggctl_path, dst)
+            dst = Runtime.bin_dir / 'yggdrasilctl'
+            if not dst.exists():
+                shutil.copy2(yggctl_path, dst)
             yggctl_path = str(dst)
 
 
