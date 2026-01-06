@@ -3,7 +3,6 @@ from yggui.funcs.config import ConfigManager
 from importlib.metadata import version, PackageNotFoundError
 from pathlib import Path
 from importlib.resources import files
-import xml.etree.ElementTree as ET
 
 def which_in_flatpak(cmd: str) -> str | None:
     result = subprocess.run(
@@ -81,78 +80,6 @@ class Gui:
     peer_ui_file = files('yggui.ui').joinpath('peer_dialog.ui')
     about_ui_file = files("yggui.ui").joinpath("about_dialog.ui")
     css_file = files('yggui.ui').joinpath('ui.css')
-
-
-def _find_metainfo_file() -> Path | None:
-    app_id = Runtime.app_id
-    names = [
-        f"{app_id}.metainfo.xml",
-        f"{app_id}.appdata.xml",
-    ]
-    prefixes = [
-        Path("/app/share/metainfo"),
-        Path("/usr/share/metainfo"),
-        Path("/usr/local/share/metainfo"),
-        Path("xdg/")
-    ]
-    if Runtime.is_appimage and (appdir := os.getenv("APPDIR")):
-        prefixes = [
-            Path(appdir) / "usr/share/metainfo",
-            Path(appdir) / "share/metainfo"
-        ]
-    for prefix in prefixes:
-        for name in names:
-            path = prefix / name
-            if path.is_file():
-                return path
-    return None
-
-
-def get_app_info() -> dict:
-    path = _find_metainfo_file()
-    if not path:
-        return {}
-
-    try:
-        root = ET.parse(path).getroot()
-
-        name = root.findtext("name", default="")
-        project_license = root.findtext("project_license", default="")
-        summary = root.findtext("summary", default="")
-
-        desc_elem = root.find("description")
-        if desc_elem is not None:
-            description = "".join(desc_elem.itertext()).strip()
-        else:
-            description = ""
-
-        release = root.find(".//release")
-        version = release.attrib.get("version") if release is not None else "dev"
-        developer_name = root.findtext("developer/name", default="")
-
-        homepage_url = ""
-        issue_url = ""
-
-        for url_elem in root.findall("url"):
-            url_type = url_elem.attrib.get("type", "")
-            if url_type == "homepage":
-                homepage_url = url_elem.text or ""
-            elif url_type == "bugtracker":
-                issue_url = url_elem.text or ""
-
-        return {
-            "name": name,
-            "project_license": project_license,
-            "summary": summary,
-            "description": description,
-            "version": version,
-            "developer_name": developer_name,
-            "website": homepage_url,
-            "issue_url": issue_url
-        }
-
-    except ET.ParseError:
-        return {}
 
 
 def get_logger(name: str) -> logging.Logger:

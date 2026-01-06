@@ -7,7 +7,7 @@ gi.require_version("Adw", "1")
 
 from gi.repository import Gtk, Adw, Gdk, Gio  # type: ignore
 
-from yggui.core.common import Gui, Binary, get_app_info, Runtime
+from yggui.core.common import Gui, Binary, Runtime
 from yggui.funcs.peers import load_config
 from yggui.exec.shell import Shell
 from yggui.funcs.private_key import load_private_key
@@ -159,9 +159,7 @@ class MyApp(Adw.Application):
             self.about_dialog.set_transient_for(self.win)
             self.about_dialog.set_modal(True)
 
-            info = get_app_info()
-
-            self.about_dialog.set_version(Runtime.version if Runtime.version != "0.0.0" else info.get("version", "dev"))
+            self.about_dialog.set_version(Runtime.version)
 
             self.about_dialog.set_hide_on_close(True)
             self.about_dialog.connect("destroy", lambda *_: setattr(self, "about_dialog", None))
