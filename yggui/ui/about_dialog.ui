@@ -10,8 +10,8 @@
     <property name="license-type">gpl-3-0</property>
     <property name="website">https://github.com/ergolyam/Drosophila</property>
     <property name="issue-url">https://github.com/ergolyam/Drosophila/issues</property>
-    <property name="comments" translatable="yes">Simple Libadwaita/GTK 4 frontend that shows status and lets you control Yggdrasil.</property>
-    <property name="translator-credits" translatable="yes"/>
+    <property name="comments">Simple Libadwaita/GTK 4 frontend that shows status and lets you control Yggdrasil.</property>
+    <property name="translator-credits"/>
   </object>
 </interface>
 
