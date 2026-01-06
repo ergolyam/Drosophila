@@ -161,13 +161,7 @@ class MyApp(Adw.Application):
 
             info = get_app_info()
 
-            self.about_dialog.set_application_name(info.get("name", ""))
             self.about_dialog.set_version(Runtime.version if Runtime.version != "0.0.0" else info.get("version", "dev"))
-            self.about_dialog.set_developer_name(info.get("developer_name", ""))
-            self.about_dialog.set_license_type(Gtk.License.GPL_3_0)
-            self.about_dialog.set_website(info.get("website", ""))
-            self.about_dialog.set_issue_url(info.get("issue_url", ""))
-            self.about_dialog.set_comments(info.get("summary", ""))
 
             self.about_dialog.set_hide_on_close(True)
             self.about_dialog.connect("destroy", lambda *_: setattr(self, "about_dialog", None))
