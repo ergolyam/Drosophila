@@ -65,6 +65,9 @@ class PeerDiscoveryDialog:
         self._max_workers = 20
         self._check_timeout = 3.0
         self._refresh_source_id: int | None = None
+        self._search_active = False
+        self._cache_disabled = False
+        self._active_protocols: set[str] = set()
 
         self._init_ui()
         self._load_cache()
@@ -113,6 +116,8 @@ class PeerDiscoveryDialog:
         self.progress_box.set_visible(True)
 
     def _save_cache(self) -> None:
+        if self._cache_disabled:
+            return
         self.app._peer_discovery_cache = {
             "peers": dict(self._peers_by_address),
             "loaded_protocols": set(self._loaded_protocols),
@@ -123,6 +128,8 @@ class PeerDiscoveryDialog:
         return [p for p in self._enabled_protocols if p not in self._loaded_protocols]
 
     def _on_response(self, _dialog, response: str) -> None:
+        if response == "cancel" and self._search_active:
+            self._abort_search()
         if response != "use":
             return
         peer = self._peers_by_address.get(self._selected_address or "")
@@ -191,6 +198,8 @@ class PeerDiscoveryDialog:
         self.progress_label.set_label("Fetching peer list…")
         self._set_filter_buttons_sensitive(False)
         self.refresh_btn.set_sensitive(False)
+        self._search_active = True
+        self._active_protocols = set(protocols)
 
         def _run_search(generation: int, wanted_protocols: list[str]) -> None:
             try:
@@ -201,7 +210,7 @@ class PeerDiscoveryDialog:
 
             peers = self._build_peers(raw, wanted_protocols)
             if not peers:
-                GLib.idle_add(self._mark_protocols_loaded, wanted_protocols)
+                GLib.idle_add(self._mark_protocols_loaded, wanted_protocols, generation)
                 GLib.idle_add(self._show_no_peers)
                 return
 
@@ -210,7 +219,7 @@ class PeerDiscoveryDialog:
             available = self._check_peers(peers, generation)
             if generation != self._search_generation:
                 return
-            GLib.idle_add(self._mark_protocols_loaded, wanted_protocols)
+            GLib.idle_add(self._mark_protocols_loaded, wanted_protocols, generation)
             if available == 0:
                 GLib.idle_add(self._show_no_peers)
 
@@ -243,6 +252,8 @@ class PeerDiscoveryDialog:
             self.progress_box.set_visible(True)
             self._set_filter_buttons_sensitive(True)
             self.refresh_btn.set_sensitive(True)
+            self._search_active = False
+            self._active_protocols = set()
 
     def _show_no_peers(self) -> None:
         self.progress_label.set_label("No peers available")
@@ -251,6 +262,24 @@ class PeerDiscoveryDialog:
         self.progress_box.set_visible(True)
         self._set_filter_buttons_sensitive(True)
         self.refresh_btn.set_sensitive(True)
+        self._search_active = False
+        self._active_protocols = set()
+
+    def _abort_search(self) -> None:
+        self._search_generation += 1
+        self._search_active = False
+        active = set(self._active_protocols)
+        self._active_protocols = set()
+        if not active:
+            return
+        with self._peers_lock:
+            self._peers_by_address = {
+                address: peer
+                for address, peer in self._peers_by_address.items()
+                if peer.protocol not in active
+            }
+        self._loaded_protocols.difference_update(active)
+        self._save_cache()
 
     def _fetch_peers_raw(self, refresh: bool) -> dict:
         if self._all_peers_raw is not None and not refresh:
@@ -322,7 +351,9 @@ class PeerDiscoveryDialog:
         GLib.idle_add(self._finish_progress)
         return available_count
 
-    def _mark_protocols_loaded(self, protocols: list[str]) -> None:
+    def _mark_protocols_loaded(self, protocols: list[str], generation: int) -> None:
+        if generation != self._search_generation or self._cache_disabled:
+            return
         self._loaded_protocols.update(protocols)
         self._save_cache()
 
