@@ -17,3 +17,8 @@ config.json
 .flatpak-builder/
 build-dir/
 appimage
+
+# Markdown
+*.md
+!readme.md
+!development.md
