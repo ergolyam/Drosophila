@@ -39,6 +39,7 @@ class PeerDiscoveryDialog:
         self.progress_box: Gtk.Box = self.builder.get_object("peer_discovery_progress_box")
         self.progress_label: Gtk.Label = self.builder.get_object("peer_discovery_progress_label")
         self.progress_spinner: Gtk.Spinner = self.builder.get_object("peer_discovery_spinner")
+        self.filter_menu_btn: Gtk.MenuButton = self.builder.get_object("protocol_filter_btn")
         self.refresh_btn: Gtk.Button = self.builder.get_object("refresh_peers_btn")
 
         self.filter_buttons = {
@@ -165,6 +166,8 @@ class PeerDiscoveryDialog:
         if btn.get_active():
             self._enabled_protocols.add(proto)
             if proto not in self._loaded_protocols:
+                self.filter_menu_btn.popdown()
+                self._set_filter_menu_sensitive(False)
                 self._start_search([proto])
         else:
             if proto in self._enabled_protocols:
@@ -196,7 +199,7 @@ class PeerDiscoveryDialog:
             return
         self._set_progress_visible(True)
         self.progress_label.set_label("Fetching peer list…")
-        self._set_filter_buttons_sensitive(False)
+        self._set_filter_menu_sensitive(False)
         self.refresh_btn.set_sensitive(False)
         self._search_active = True
         self._active_protocols = set(protocols)
@@ -250,7 +253,7 @@ class PeerDiscoveryDialog:
             self.progress_spinner.set_spinning(False)
             self.progress_spinner.set_visible(False)
             self.progress_box.set_visible(True)
-            self._set_filter_buttons_sensitive(True)
+            self._set_filter_menu_sensitive(True)
             self.refresh_btn.set_sensitive(True)
             self._search_active = False
             self._active_protocols = set()
@@ -260,7 +263,7 @@ class PeerDiscoveryDialog:
         self.progress_spinner.set_spinning(False)
         self.progress_spinner.set_visible(False)
         self.progress_box.set_visible(True)
-        self._set_filter_buttons_sensitive(True)
+        self._set_filter_menu_sensitive(True)
         self.refresh_btn.set_sensitive(True)
         self._search_active = False
         self._active_protocols = set()
@@ -463,9 +466,8 @@ class PeerDiscoveryDialog:
 
         self._refresh_source_id = GLib.timeout_add(200, _run_refresh)
 
-    def _set_filter_buttons_sensitive(self, sensitive: bool) -> None:
-        for btn in self.filter_buttons.values():
-            btn.set_sensitive(sensitive)
+    def _set_filter_menu_sensitive(self, sensitive: bool) -> None:
+        self.filter_menu_btn.set_sensitive(sensitive)
 
     def _refresh_list(self) -> None:
         peers = self._get_visible_peers()
