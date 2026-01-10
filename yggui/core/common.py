@@ -78,6 +78,7 @@ class Gui:
     ui_main_file = files('yggui.ui').joinpath('main.ui')
     ui_settings_file = files('yggui.ui').joinpath('settings.ui')
     peer_ui_file = files('yggui.ui').joinpath('peer_dialog.ui')
+    peer_discovery_ui_file = files('yggui.ui').joinpath('peer_discovery.ui')
     about_ui_file = files("yggui.ui").joinpath("about_dialog.ui")
     css_file = files('yggui.ui').joinpath('ui.css')
 

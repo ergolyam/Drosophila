@@ -7,6 +7,7 @@ from urllib.parse import urlparse, parse_qs
 from yggui.exec.get_info import get_peers_status
 
 from yggui.core.common import Runtime, Gui, Regexp
+from yggui.funcs.peer_discovery import open_peer_discovery_dialog
 
 
 def apply_status(app, status: dict[str, bool]) -> None:
@@ -141,7 +142,22 @@ def set_trash_buttons_sensitive(app, sensitive: bool) -> None:
         btn.set_sensitive(sensitive)
 
 
-def open_add_peer_dialog(app):
+def _open_from_discovery(app, peer) -> None:
+    parsed = urlparse(peer.address)
+    domain = parsed.hostname or ""
+    if parsed.port:
+        domain = f"{domain}:{parsed.port}"
+    sni = parse_qs(parsed.query).get("sni", [None])[0]
+
+    prefill = {
+        "protocol": parsed.scheme,
+        "domain": domain,
+        "sni": sni,
+    }
+    open_add_peer_dialog(app, prefill=prefill)
+
+
+def open_add_peer_dialog(app, prefill: dict | None = None):
     builder = Gtk.Builder.new_from_file(str(Gui.peer_ui_file))
 
     dialog: Adw.AlertDialog = builder.get_object("add_peer_dialog")
@@ -196,7 +212,19 @@ def open_add_peer_dialog(app):
     domain_row.connect("notify::text", _validate)
     sni_row.connect("notify::text",    _validate)
 
+    if prefill:
+        proto = prefill.get("protocol")
+        if proto in ["tcp", "tls", "quic", "ws", "wss"]:
+            proto_row.set_selected(["tcp", "tls", "quic", "ws", "wss"].index(proto))
+        domain = prefill.get("domain")
+        if domain:
+            domain_row.set_text(domain)
+        sni = prefill.get("sni")
+        if sni:
+            sni_row.set_text(sni)
+
     _update_sni_row()
+    _validate()
 
     def _commit():
         domain = domain_row.get_text().strip()
@@ -229,7 +257,17 @@ def load_config(app):
     app.peers = cfg.get("Peers", [])
     rebuild_peers_box(app)
     if not getattr(app, "_add_btn_connected", False):
-        app.add_peer_btn.connect("clicked", lambda _b: open_add_peer_dialog(app))
+        app.add_peer_manual_btn.connect(
+            "clicked",
+            lambda _b: (app.add_peer_btn.popdown(), open_add_peer_dialog(app)),
+        )
+        app.add_peer_find_btn.connect(
+            "clicked",
+            lambda _b: (
+                app.add_peer_btn.popdown(),
+                open_peer_discovery_dialog(app, lambda peer: _open_from_discovery(app, peer)),
+            ),
+        )
         app._add_btn_connected = True
 
 
@@ -247,4 +285,3 @@ def remove_peer(app, peer):
 
 if __name__ == "__main__":
     raise RuntimeError("This module should be run only via main.py")
-

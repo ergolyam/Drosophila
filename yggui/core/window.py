@@ -89,7 +89,9 @@ class MyApp(Adw.Application):
         self._expand_ipv6_card(False)
 
         self.peers_box: Gtk.Box = builder.get_object("peers_box")
-        self.add_peer_btn: Gtk.Button = builder.get_object("add_peer_btn")
+        self.add_peer_btn: Gtk.MenuButton = builder.get_object("add_peer_btn")
+        self.add_peer_manual_btn: Gtk.Button = builder.get_object("add_peer_manual_btn")
+        self.add_peer_find_btn: Gtk.Button = builder.get_object("add_peer_find_btn")
 
         self.private_key_row: Adw.EntryRow = builder.get_object("private_key_row")
         self.private_key_regen_icon: Gtk.Button = builder.get_object(
@@ -220,4 +222,3 @@ class MyApp(Adw.Application):
 
 if __name__ == "__main__":
     raise RuntimeError("This module should be run only via main.py")
-
