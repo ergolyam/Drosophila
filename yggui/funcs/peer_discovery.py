@@ -67,7 +67,6 @@ class PeerDiscoveryDialog:
         self._check_timeout = 3.0
         self._refresh_source_id: int | None = None
         self._search_active = False
-        self._cache_disabled = False
         self._active_protocols: set[str] = set()
 
         self._init_ui()
@@ -108,8 +107,7 @@ class PeerDiscoveryDialog:
             self._show_cached_count()
 
     def _show_cached_count(self) -> None:
-        total_peers = len(self._peers_by_address)
-        if total_peers == 0:
+        if not self._peers_by_address:
             return
         self.progress_label.set_label(f"Shown {len(self._get_visible_peers())} peers")
         self.progress_spinner.set_spinning(False)
@@ -117,8 +115,6 @@ class PeerDiscoveryDialog:
         self.progress_box.set_visible(True)
 
     def _save_cache(self) -> None:
-        if self._cache_disabled:
-            return
         self.app._peer_discovery_cache = {
             "peers": dict(self._peers_by_address),
             "loaded_protocols": set(self._loaded_protocols),
@@ -355,7 +351,7 @@ class PeerDiscoveryDialog:
         return available_count
 
     def _mark_protocols_loaded(self, protocols: list[str], generation: int) -> None:
-        if generation != self._search_generation or self._cache_disabled:
+        if generation != self._search_generation:
             return
         self._loaded_protocols.update(protocols)
         self._save_cache()
