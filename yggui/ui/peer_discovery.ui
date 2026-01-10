@@ -1,0 +1,143 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<interface>
+  <requires lib="gtk" version="4.12"/>
+  <requires lib="adw" version="1.0"/>
+
+  <object class="AdwAlertDialog" id="peer_discovery_dialog">
+    <property name="heading" translatable="yes">Find peers</property>
+    <property name="default-response">use</property>
+    <property name="close-response">cancel</property>
+    <responses>
+      <response id="cancel" translatable="yes">Cancel</response>
+      <response id="use" translatable="yes" appearance="suggested">Use selected</response>
+    </responses>
+
+    <property name="extra-child">
+      <object class="GtkBox">
+        <property name="orientation">vertical</property>
+        <property name="spacing">12</property>
+
+        <child>
+          <object class="AdwPreferencesGroup" id="peer_discovery_controls_group">
+            <property name="title" translatable="yes">Search options</property>
+
+            <child type="header-suffix">
+              <object class="GtkBox">
+                <property name="spacing">6</property>
+
+                <child>
+                  <object class="GtkMenuButton" id="protocol_filter_btn">
+                    <property name="tooltip-text" translatable="yes">Protocol filters</property>
+                    <property name="css-classes">flat</property>
+                    <child>
+                      <object class="GtkImage">
+                        <property name="icon-name">view-more-symbolic</property>
+                      </object>
+                    </child>
+                    <property name="popover">
+                      <object class="GtkPopover" id="protocol_filter_popover">
+                        <child>
+                          <object class="GtkBox">
+                            <property name="orientation">vertical</property>
+                            <property name="margin-top">6</property>
+                            <property name="margin-bottom">6</property>
+                            <property name="margin-start">6</property>
+                            <property name="margin-end">6</property>
+                            <property name="spacing">6</property>
+
+                            <child>
+                              <object class="GtkCheckButton" id="filter_tcp">
+                                <property name="label" translatable="yes">tcp</property>
+                              </object>
+                            </child>
+                            <child>
+                              <object class="GtkCheckButton" id="filter_tls">
+                                <property name="label" translatable="yes">tls</property>
+                              </object>
+                            </child>
+                            <child>
+                              <object class="GtkCheckButton" id="filter_ws">
+                                <property name="label" translatable="yes">ws</property>
+                              </object>
+                            </child>
+                            <child>
+                              <object class="GtkCheckButton" id="filter_wss">
+                                <property name="label" translatable="yes">wss</property>
+                              </object>
+                            </child>
+                            <child>
+                              <object class="GtkCheckButton" id="filter_quic">
+                                <property name="label" translatable="yes">quic</property>
+                              </object>
+                            </child>
+                          </object>
+                        </child>
+                      </object>
+                    </property>
+                  </object>
+                </child>
+
+                <child>
+                  <object class="GtkButton" id="refresh_peers_btn">
+                    <property name="icon-name">view-refresh-symbolic</property>
+                    <property name="tooltip-text" translatable="yes">Refresh list</property>
+                    <property name="css-classes">flat</property>
+                  </object>
+                </child>
+              </object>
+            </child>
+
+            <child>
+              <object class="AdwComboRow" id="peer_sort_row">
+                <property name="title" translatable="yes">Sort by</property>
+                <property name="selected">0</property>
+                <property name="model">
+                  <object class="GtkStringList">
+                    <items>
+                      <item translatable="yes">Ping</item>
+                      <item translatable="yes">Country</item>
+                    </items>
+                  </object>
+                </property>
+              </object>
+            </child>
+          </object>
+        </child>
+
+        <child>
+          <object class="GtkBox" id="peer_discovery_progress_box">
+            <property name="spacing">6</property>
+            <property name="visible">False</property>
+            <child>
+              <object class="GtkSpinner" id="peer_discovery_spinner">
+                <property name="spinning">True</property>
+              </object>
+            </child>
+            <child>
+              <object class="GtkLabel" id="peer_discovery_progress_label">
+                <property name="xalign">0.0</property>
+                <property name="label" translatable="yes">Searching for peers…</property>
+              </object>
+            </child>
+          </object>
+        </child>
+
+        <child>
+          <object class="GtkScrolledWindow">
+            <property name="min-content-height">260</property>
+            <property name="propagate-natural-height">True</property>
+            <property name="vexpand">True</property>
+            <child>
+              <object class="GtkListBox" id="peer_discovery_list">
+                <property name="selection-mode">single</property>
+                <property name="show-separators">True</property>
+                <property name="css-classes">boxed-list</property>
+              </object>
+            </child>
+          </object>
+        </child>
+
+      </object>
+    </property>
+  </object>
+</interface>
