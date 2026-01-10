@@ -80,10 +80,38 @@
                 <property name="margin-bottom">12</property>
 
                 <child type="header-suffix">
-                  <object class="GtkButton" id="add_peer_btn">
+                  <object class="GtkMenuButton" id="add_peer_btn">
                     <property name="icon-name">list-add-symbolic</property>
-                    <property name="tooltip-text">Add peer</property>
+                    <property name="tooltip-text" translatable="yes">Add peer</property>
                     <property name="css-classes">flat</property>
+                    <property name="popover">
+                      <object class="GtkPopover" id="add_peer_popover">
+                        <child>
+                          <object class="GtkBox">
+                            <property name="orientation">vertical</property>
+                            <property name="margin-top">6</property>
+                            <property name="margin-bottom">6</property>
+                            <property name="margin-start">6</property>
+                            <property name="margin-end">6</property>
+                            <property name="spacing">6</property>
+
+                            <child>
+                              <object class="GtkButton" id="add_peer_manual_btn">
+                                <property name="label" translatable="yes">Add manually</property>
+                                <property name="css-classes">flat</property>
+                              </object>
+                            </child>
+
+                            <child>
+                              <object class="GtkButton" id="add_peer_find_btn">
+                                <property name="label" translatable="yes">Find peers</property>
+                                <property name="css-classes">flat</property>
+                              </object>
+                            </child>
+                          </object>
+                        </child>
+                      </object>
+                    </property>
                   </object>
                 </child>
 
@@ -103,4 +131,3 @@
     </child>
   </object>
 </interface>
-
