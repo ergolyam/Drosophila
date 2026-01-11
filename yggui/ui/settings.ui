@@ -21,6 +21,7 @@
                 <child type="suffix">
                   <object class="GtkButton" id="private_key_regen_icon">
                     <property name="css-classes">flat</property>
+                    <property name="tooltip-text">Regenerate</property>
                     <property name="focus-on-click">False</property>
                     <child>
                       <object class="GtkImage">
