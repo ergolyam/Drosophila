@@ -1,7 +1,7 @@
-import base64, json, os, socket, ssl, time
+import base64, json, os, socket, ssl, time, errno, selectors
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
-from threading import Lock, Thread
+from threading import Lock, Thread, Event
 from urllib.request import urlopen
 from urllib.error import URLError
 from urllib.parse import urlparse
@@ -68,6 +68,8 @@ class PeerDiscoveryDialog:
         self._refresh_source_id: int | None = None
         self._search_active = False
         self._active_protocols: set[str] = set()
+        self._cancel_event = Event()
+        self._loading_cache = False
 
         self._init_ui()
         self._load_cache()
@@ -96,15 +98,17 @@ class PeerDiscoveryDialog:
         peers = cache.get("peers", {})
         loaded = cache.get("loaded_protocols", set())
         enabled = cache.get("enabled_protocols")
+        self._loading_cache = True
+        self._loaded_protocols = set(loaded)
         if enabled:
             self._enabled_protocols = set(enabled)
             for proto, btn in self.filter_buttons.items():
                 btn.set_active(proto in self._enabled_protocols)
         if peers:
             self._peers_by_address = dict(peers)
-            self._loaded_protocols = set(loaded)
             self._refresh_list()
             self._show_cached_count()
+        self._loading_cache = False
 
     def _show_cached_count(self) -> None:
         if not self._peers_by_address:
@@ -158,6 +162,8 @@ class PeerDiscoveryDialog:
         self._start_search(list(self._enabled_protocols), refresh=True)
 
     def _on_filter_toggled(self, proto: str) -> None:
+        if self._loading_cache:
+            return
         btn = self.filter_buttons[proto]
         if btn.get_active():
             self._enabled_protocols.add(proto)
@@ -199,6 +205,7 @@ class PeerDiscoveryDialog:
         self.refresh_btn.set_sensitive(False)
         self._search_active = True
         self._active_protocols = set(protocols)
+        self._cancel_event.clear()
 
         def _run_search(generation: int, wanted_protocols: list[str]) -> None:
             try:
@@ -267,6 +274,7 @@ class PeerDiscoveryDialog:
     def _abort_search(self) -> None:
         self._search_generation += 1
         self._search_active = False
+        self._cancel_event.set()
         active = set(self._active_protocols)
         self._active_protocols = set()
         if not active:
@@ -357,6 +365,8 @@ class PeerDiscoveryDialog:
         self._save_cache()
 
     def _check_peer(self, peer: DiscoveredPeer) -> bool:
+        if self._cancel_event.is_set():
+            return False
         if peer.protocol == "quic":
             peer.ping_ms = peer.response_ms if peer.response_ms > 0 else None
             return True
@@ -374,29 +384,25 @@ class PeerDiscoveryDialog:
 
     def _check_tcp(self, peer: DiscoveredPeer) -> bool:
         start = time.perf_counter()
-        try:
-            with socket.create_connection(
-                (peer.host, peer.port), timeout=self._check_timeout
-            ):
-                peer.ping_ms = int((time.perf_counter() - start) * 1000)
-                return True
-        except OSError:
+        sock = self._connect_with_cancel(peer.host, peer.port)
+        if sock is None:
             return False
+        sock.close()
+        peer.ping_ms = int((time.perf_counter() - start) * 1000)
+        return True
 
     def _check_tls(self, peer: DiscoveredPeer) -> bool:
         start = time.perf_counter()
-        context = ssl.create_default_context()
-        context.check_hostname = False
-        context.verify_mode = ssl.CERT_NONE
-        try:
-            with socket.create_connection(
-                (peer.host, peer.port), timeout=self._check_timeout
-            ) as sock:
-                with context.wrap_socket(sock, server_hostname=peer.host):
-                    peer.ping_ms = int((time.perf_counter() - start) * 1000)
-                    return True
-        except OSError:
+        sock = self._connect_with_cancel(peer.host, peer.port)
+        if sock is None:
             return False
+        tls_sock = self._wrap_tls_with_cancel(sock, peer.host)
+        if tls_sock is None:
+            sock.close()
+            return False
+        tls_sock.close()
+        peer.ping_ms = int((time.perf_counter() - start) * 1000)
+        return True
 
     def _check_ws(self, peer: DiscoveredPeer) -> bool:
         return self._check_websocket(peer, use_tls=False)
@@ -406,20 +412,16 @@ class PeerDiscoveryDialog:
 
     def _check_websocket(self, peer: DiscoveredPeer, use_tls: bool) -> bool:
         start = time.perf_counter()
-        try:
-            with socket.create_connection(
-                (peer.host, peer.port), timeout=self._check_timeout
-            ) as raw_sock:
-                raw_sock.settimeout(self._check_timeout)
-                if use_tls:
-                    context = ssl.create_default_context()
-                    context.check_hostname = False
-                    context.verify_mode = ssl.CERT_NONE
-                    with context.wrap_socket(raw_sock, server_hostname=peer.host) as tls_sock:
-                        return self._send_ws_request(peer, tls_sock, start)
-                return self._send_ws_request(peer, raw_sock, start)
-        except OSError:
+        sock = self._connect_with_cancel(peer.host, peer.port)
+        if sock is None:
             return False
+        if use_tls:
+            tls_sock = self._wrap_tls_with_cancel(sock, peer.host)
+            if tls_sock is None:
+                sock.close()
+                return False
+            return self._send_ws_request(peer, tls_sock, start)
+        return self._send_ws_request(peer, sock, start)
 
     def _send_ws_request(self, peer: DiscoveredPeer, sock: socket.socket, start: float) -> bool:
         key = base64.b64encode(os.urandom(16)).decode("ascii")
@@ -431,12 +433,18 @@ class PeerDiscoveryDialog:
             f"Sec-WebSocket-Key: {key}\r\n"
             "Sec-WebSocket-Version: 13\r\n\r\n"
         )
-        sock.sendall(request.encode("ascii"))
-        response = sock.recv(256)
-        if b" 101 " not in response and b" 101\r" not in response:
-            return False
-        peer.ping_ms = int((time.perf_counter() - start) * 1000)
-        return True
+        try:
+            sock.settimeout(self._check_timeout)
+            sock.sendall(request.encode("ascii"))
+            response = self._recv_with_cancel(sock, 256)
+            if response is None:
+                return False
+            if b" 101 " not in response and b" 101\r" not in response:
+                return False
+            peer.ping_ms = int((time.perf_counter() - start) * 1000)
+            return True
+        finally:
+            sock.close()
 
     def _add_peer(self, peer: DiscoveredPeer, generation: int) -> None:
         if generation != self._search_generation:
@@ -516,6 +524,110 @@ class PeerDiscoveryDialog:
         else:
             peers.sort(key=lambda p: (p.ping_ms or 999999, p.country.lower()))
         return peers
+
+    def _connect_with_cancel(self, host: str, port: int) -> socket.socket | None:
+        if self._cancel_event.is_set():
+            return None
+        try:
+            infos = socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)
+        except OSError:
+            return None
+        deadline = time.monotonic() + self._check_timeout
+        for family, socktype, proto, _canon, sockaddr in infos:
+            sock = socket.socket(family, socktype, proto)
+            try:
+                sock.setblocking(False)
+                err = sock.connect_ex(sockaddr)
+                if err == 0:
+                    sock.setblocking(True)
+                    return sock
+                if err not in (errno.EINPROGRESS, errno.EWOULDBLOCK, errno.EALREADY):
+                    sock.close()
+                    continue
+                selector = selectors.DefaultSelector()
+                selector.register(sock, selectors.EVENT_WRITE)
+                try:
+                    while True:
+                        if self._cancel_event.is_set():
+                            sock.close()
+                            return None
+                        timeout = deadline - time.monotonic()
+                        if timeout <= 0:
+                            sock.close()
+                            return None
+                        events = selector.select(min(0.2, timeout))
+                        if not events:
+                            continue
+                        err = sock.getsockopt(socket.SOL_SOCKET, socket.SO_ERROR)
+                        if err == 0:
+                            sock.setblocking(True)
+                            return sock
+                        sock.close()
+                        break
+                finally:
+                    selector.unregister(sock)
+                    selector.close()
+            except OSError:
+                sock.close()
+                continue
+        return None
+
+    def _wrap_tls_with_cancel(self, sock: socket.socket, host: str) -> ssl.SSLSocket | None:
+        if self._cancel_event.is_set():
+            sock.close()
+            return None
+        context = ssl.create_default_context()
+        context.check_hostname = False
+        context.verify_mode = ssl.CERT_NONE
+        tls_sock = context.wrap_socket(sock, server_hostname=host, do_handshake_on_connect=False)
+        tls_sock.setblocking(False)
+        selector = selectors.DefaultSelector()
+        selector.register(tls_sock, selectors.EVENT_READ | selectors.EVENT_WRITE)
+        deadline = time.monotonic() + self._check_timeout
+        try:
+            while True:
+                if self._cancel_event.is_set():
+                    tls_sock.close()
+                    return None
+                try:
+                    tls_sock.do_handshake()
+                    tls_sock.setblocking(True)
+                    return tls_sock
+                except (ssl.SSLWantReadError, ssl.SSLWantWriteError):
+                    timeout = deadline - time.monotonic()
+                    if timeout <= 0:
+                        tls_sock.close()
+                        return None
+                    selector.select(min(0.2, timeout))
+                except ssl.SSLError:
+                    tls_sock.close()
+                    return None
+        finally:
+            selector.unregister(tls_sock)
+            selector.close()
+
+    def _recv_with_cancel(self, sock: socket.socket, size: int) -> bytes | None:
+        if self._cancel_event.is_set():
+            return None
+        selector = selectors.DefaultSelector()
+        selector.register(sock, selectors.EVENT_READ)
+        deadline = time.monotonic() + self._check_timeout
+        try:
+            while True:
+                if self._cancel_event.is_set():
+                    return None
+                timeout = deadline - time.monotonic()
+                if timeout <= 0:
+                    return None
+                events = selector.select(min(0.2, timeout))
+                if not events:
+                    continue
+                return sock.recv(size)
+        except OSError:
+            return None
+        finally:
+            selector.unregister(sock)
+            selector.close()
 
 
 def open_peer_discovery_dialog(app, on_selected) -> None:
