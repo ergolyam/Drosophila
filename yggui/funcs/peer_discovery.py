@@ -510,7 +510,6 @@ class PeerDiscoveryDialog:
                 self.progress_label.set_label(f"Shown {len(peers)} peers")
             self.progress_box.set_visible(True)
 
-
     def _get_visible_peers(self) -> list[DiscoveredPeer]:
         peers = [
             peer
