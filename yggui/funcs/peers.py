@@ -72,8 +72,7 @@ def build_proto_widget(proto: str) -> tuple[Gtk.Widget, str, Gtk.Image]:
         overlay.set_child(base_img)
         lock = Gtk.Image.new_from_icon_name("security-low-symbolic")
         lock.set_pixel_size(30)
-        lock.set_valign(Gtk.Align.END)
-        lock.set_margin_bottom(9)
+        lock.set_margin_bottom(-4)
         lock.set_margin_start(-14)
         overlay.add_overlay(lock)
         return overlay, base_name, base_img
