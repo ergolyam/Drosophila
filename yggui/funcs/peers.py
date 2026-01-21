@@ -6,7 +6,7 @@ from urllib.parse import urlparse, parse_qs
 
 from yggui.exec.get_info import get_peers_status
 
-from yggui.core.common import Runtime, Gui, Regexp
+from yggui.core.common import Runtime, Gui, Regexp, Common
 from yggui.funcs.peer_discovery import open_peer_discovery_dialog
 
 
@@ -57,13 +57,15 @@ def clear_peer_status(app) -> bool:
 
 
 def build_proto_widget(proto: str) -> tuple[Gtk.Widget, str, Gtk.Image]:
-    base_name = {
-        "tcp": "network-wired-symbolic",
-        "tls": "network-wired-symbolic",
-        "quic": "network-transmit-receive-symbolic",
-        "ws": "web-browser-symbolic",
-        "wss": "web-browser-symbolic",
-    }.get(proto, "network-server-symbolic")
+    proto_icons = {p: "network-wired-symbolic" for p in Common.protocols}
+    proto_icons.update(
+        {
+            "quic": "network-transmit-receive-symbolic",
+            "ws": "web-browser-symbolic",
+            "wss": "web-browser-symbolic",
+        }
+    )
+    base_name = proto_icons.get(proto, "network-server-symbolic")
 
     base_img = Gtk.Image.new_from_icon_name(base_name)
 
@@ -179,7 +181,7 @@ def open_add_peer_dialog(app, prefill: dict | None = None):
     def _validate(_row=None, _pspec=None):
         domain = domain_row.get_text().strip()
         sni    = sni_row.get_text().strip()
-        proto  = ["tcp", "tls", "quic", "ws", "wss"][proto_row.get_selected()]
+        proto  = Common.protocols[proto_row.get_selected()]
 
         domain_has_text = bool(domain)
         domain_valid    = bool(Regexp.domain_re.fullmatch(domain))
@@ -213,8 +215,8 @@ def open_add_peer_dialog(app, prefill: dict | None = None):
 
     if prefill:
         proto = prefill.get("protocol")
-        if proto in ["tcp", "tls", "quic", "ws", "wss"]:
-            proto_row.set_selected(["tcp", "tls", "quic", "ws", "wss"].index(proto))
+        if proto in Common.protocols:
+            proto_row.set_selected(Common.protocols.index(proto))
         domain = prefill.get("domain")
         if domain:
             domain_row.set_text(domain)
@@ -230,7 +232,7 @@ def open_add_peer_dialog(app, prefill: dict | None = None):
         if not domain:
             return
 
-        proto = ["tcp", "tls", "quic", "ws", "wss"][proto_row.get_selected()]
+        proto = Common.protocols[proto_row.get_selected()]
         peer  = f"{proto}://{domain}"
 
         sni = sni_row.get_text().strip()

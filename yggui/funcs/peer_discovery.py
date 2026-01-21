@@ -8,7 +8,7 @@ from urllib.parse import urlparse
 
 from gi.repository import Gtk, Adw, GLib  # type: ignore
 
-from yggui.core.common import Gui
+from yggui.core.common import Gui, Common
 
 
 @dataclass
@@ -43,17 +43,11 @@ class PeerDiscoveryDialog:
         self.refresh_btn: Gtk.Button = self.builder.get_object("refresh_peers_btn")
 
         self.filter_buttons = {
-            "tcp": self.builder.get_object("filter_tcp"),
-            "tls": self.builder.get_object("filter_tls"),
-            "ws": self.builder.get_object("filter_ws"),
-            "wss": self.builder.get_object("filter_wss"),
-            "quic": self.builder.get_object("filter_quic"),
+            proto: self.builder.get_object(f"filter_{proto}")
+            for proto in Common.protocols
         }
 
-        self._urls = [
-            "https://publicpeers.neilalexander.dev/publicnodes.json",
-            "https://peers.yggdrasil.link/publicnodes.json",
-        ]
+        self._urls = Common.urls
         self._default_protocols = {"tcp", "tls"}
         self._enabled_protocols = set(self._default_protocols)
         self._loaded_protocols = set()

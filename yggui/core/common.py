@@ -23,6 +23,9 @@ def xdg_config(app_name: str) -> Path:
     cfg_dir.mkdir(parents=True, exist_ok=True)
     return cfg_dir
 
+class Common:
+    urls = [ "https://publicpeers.neilalexander.dev/publicnodes.json", "https://peers.yggdrasil.link/publicnodes.json"]
+    protocols = ["tcp", "tls", "quic", "ws", "wss"]
 
 class Regexp:
     domain_re = re.compile(
