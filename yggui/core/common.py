@@ -25,7 +25,7 @@ def xdg_config(app_name: str) -> Path:
 
 class Common:
     urls = [ "https://publicpeers.neilalexander.dev/publicnodes.json", "https://peers.yggdrasil.link/publicnodes.json"]
-    protocols = ["tcp", "tls", "quic", "ws", "wss"]
+    protocols = ["tcp", "tls", "ws", "wss", "quic"]
 
 class Regexp:
     domain_re = re.compile(
