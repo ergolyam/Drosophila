@@ -31,10 +31,10 @@
   <provides><binary>yggui</binary></provides>
   <screenshots>
     <screenshot type="default">
-      <image>https://github.com/ergolyam/Drosophila/blob/ee6ca333adbdc6b72e6fbf7201776bf518a0d288/.github/docs/main.png</image>
+      <image>https://github.com/ergolyam/Drosophila/raw/ee6ca333adbdc6b72e6fbf7201776bf518a0d288/.github/docs/main.png</image>
     </screenshot>
     <screenshot>
-      <image>https://github.com/ergolyam/Drosophila/blob/ee6ca333adbdc6b72e6fbf7201776bf518a0d288/.github/docs/settings.png</image>
+      <image>https://github.com/ergolyam/Drosophila/raw/ee6ca333adbdc6b72e6fbf7201776bf518a0d288/.github/docs/settings.png</image>
     </screenshot>
   </screenshots>
   <developer id="io.github.ergolyam">
