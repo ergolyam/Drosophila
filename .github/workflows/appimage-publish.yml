@@ -30,6 +30,7 @@ jobs:
         with:
           repository: yggdrasil-network/yggdrasil-go
           path: yggdrasil
+          ref: v0.5.13
 
       - name: Build yggdrasil
         env:
@@ -42,6 +43,7 @@ jobs:
         with:
           repository: yggdrasil-network/yggstack
           path: yggstack
+          ref: 1.0.5
 
       - name: Build yggstack
         env:

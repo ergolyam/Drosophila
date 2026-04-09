@@ -32,7 +32,7 @@ modules:
     sources:
       - type: git
         url: https://github.com/yggdrasil-network/yggdrasil-go.git
-        tag: v0.5.12
+        tag: v0.5.13
       - yggdrasil-modules.yaml
 
   - name: yggstack
@@ -47,7 +47,7 @@ modules:
     sources:
       - type: git
         url: https://github.com/yggdrasil-network/yggstack.git
-        commit: "8ad1962f6456a81a6ec5a9b41fd0985f4b5768fe"
+        tag: 1.0.5
       - yggstack-modules.yaml
 
   - name: yggui
