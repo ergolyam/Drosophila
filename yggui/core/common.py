@@ -1,4 +1,4 @@
-import shutil, os, subprocess, re, logging
+import shutil, os, subprocess, re, logging, hashlib
 from yggui.funcs.config import ConfigManager
 from importlib.metadata import version, PackageNotFoundError
 from pathlib import Path
@@ -22,6 +22,27 @@ def xdg_config(app_name: str) -> Path:
     cfg_dir = base / app_name
     cfg_dir.mkdir(parents=True, exist_ok=True)
     return cfg_dir
+
+
+def sha256sum(path, chunk_size=1024 * 1024):
+    h = hashlib.sha256()
+    with open(path, 'rb') as f:
+        for chunk in iter(lambda: f.read(chunk_size), b''):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def copy_different(src, dst):
+    dst = Path(dst)
+    if not dst.exists():
+        shutil.copy2(src, dst)
+        return
+    if Path(src).stat().st_size != dst.stat().st_size:
+        shutil.copy2(src, dst)
+        return
+    if sha256sum(src) != sha256sum(dst):
+        shutil.copy2(src, dst)
+
 
 class Common:
     urls = [ "https://publicpeers.neilalexander.dev/publicnodes.json", "https://peers.yggdrasil.link/publicnodes.json"]
@@ -66,15 +87,12 @@ class Binary:
             pkexec_path = which_in_flatpak('pkexec')
         if ygg_path:
             dst = Runtime.bin_dir / 'yggdrasil'
-            if not dst.exists():
-                shutil.copy2(ygg_path, dst)
+            copy_different(ygg_path, dst)
             ygg_path = str(dst)
         if yggctl_path:
             dst = Runtime.bin_dir / 'yggdrasilctl'
-            if not dst.exists():
-                shutil.copy2(yggctl_path, dst)
+            copy_different(yggctl_path, dst)
             yggctl_path = str(dst)
-
 
 class Gui:
     ui_file = files('yggui.ui').joinpath('ui.ui')
