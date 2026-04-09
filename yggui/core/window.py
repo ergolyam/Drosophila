@@ -81,10 +81,12 @@ class MyApp(Adw.Application):
 
         self.ygg_card: Adw.ExpanderRow = builder.get_object("ygg_card")
         self.switch_row = self.ygg_card
+        self.ygg_title_base = self.ygg_card.get_title()
 
         self.address_row: Adw.ActionRow = builder.get_object("address_row")
         self.subnet_row: Adw.ActionRow = builder.get_object("subnet_row")
 
+        self._set_ygg_version(None)
         self._set_ip_labels("-", "-")
         self._expand_ipv6_card(False)
 
@@ -195,6 +197,16 @@ class MyApp(Adw.Application):
     def _set_ip_labels(self, address: str, subnet: str) -> None:
         self.address_row.set_subtitle(address)
         self.subnet_row.set_subtitle(subnet)
+
+    def _set_ygg_version(self, version: str | None) -> None:
+        title = self.ygg_title_base
+        if version:
+            normalized = version.strip()
+            if normalized and normalized.lower() != "unknown":
+                if not normalized.startswith("v"):
+                    normalized = f"v{normalized}"
+                title = f"{title} {normalized}"
+        self.ygg_card.set_title(title)
 
     def _expand_ipv6_card(self, expanded: bool) -> None:
         self.ygg_card.set_expanded(expanded)

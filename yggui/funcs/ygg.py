@@ -58,6 +58,7 @@ def on_process_error(app, message: str) -> bool:
     app.socks_pid = None
     if app.ygg_card.get_enable_expansion():
         app.ygg_card.set_enable_expansion(False)
+    app._set_ygg_version(None)
     app.switch_row.set_subtitle("Stopped")
     app._set_ip_labels("-", "-")
     app._expand_ipv6_card(False)
@@ -99,7 +100,9 @@ def poll_for_addresses(app, use_socks) -> None:
     while time.time() < deadline and (
         app.ygg_pid is not None or app.socks_pid is not None
     ):
-        addr, subnet = get_self_info(use_socks)
+        addr, subnet, version = get_self_info(use_socks)
+        if version:
+            GLib.idle_add(app._set_ygg_version, version)
         if addr and subnet:
             GLib.idle_add(app._set_ip_labels, addr, subnet)
             GLib.idle_add(update_peer_status, app)
@@ -154,6 +157,7 @@ def switch_switched(app, _switch, state: bool) -> None:
         app.ygg_pid = app.socks_pid = None
         if pid:
             stop_ygg(use_socks, pid)
+        app._set_ygg_version(None)
         app.switch_row.set_subtitle("Stopped")
         app._set_ip_labels("-", "-")
         app._expand_ipv6_card(False)
@@ -164,4 +168,3 @@ def switch_switched(app, _switch, state: bool) -> None:
 
 if __name__ == "__main__":
     raise RuntimeError("This module should be run only via main.py")
-

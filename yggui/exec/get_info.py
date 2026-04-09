@@ -3,9 +3,9 @@ from yggui.core.common import Binary, Runtime
 from yggui.exec.shell import Shell
 
 
-def get_self_info(use_socks) -> tuple[str | None, str | None]:
+def get_self_info(use_socks) -> tuple[str | None, str | None, str | None]:
     if not Runtime.admin_socket.exists():
-        return None, None
+        return None, None, None
 
     cmd = (
         f"{Binary.yggctl_path} -json "
@@ -15,9 +15,12 @@ def get_self_info(use_socks) -> tuple[str | None, str | None]:
     try:
         output = Shell.run_capture(cmd, as_root=as_root)
         data = json.loads(output)
-        return data.get("address"), data.get("subnet")
+        version = data.get("build_version")
+        if not isinstance(version, str):
+            version = None
+        return data.get("address"), data.get("subnet"), version
     except Exception:
-        return None, None
+        return None, None, None
 
 
 def get_peers_status(use_socks) -> dict[str, bool]:
