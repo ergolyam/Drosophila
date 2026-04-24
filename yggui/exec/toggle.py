@@ -22,12 +22,12 @@ def start_ygg(use_socks: bool, socks_args) -> int:
                 nameserver = f"{dns_ip}:{dns_port}"
             cmd.extend(["-nameserver", nameserver])
     cmd.extend(["-useconffile", str(Runtime.config_path.resolve())])
-    return Shell.run_background(' '.join(cmd), as_root=as_root)
+    return Shell.run_background_args(cmd, as_root=as_root)
 
 
 def stop_ygg(use_socks: bool, pid: int) -> None:
     as_root = not use_socks
-    Shell.run(f"/usr/bin/kill -s SIGINT {pid}", as_root=as_root)
+    Shell.stop_pid(pid, as_root=as_root)
 
 
 if __name__ == "__main__":

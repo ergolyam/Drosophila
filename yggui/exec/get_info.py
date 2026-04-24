@@ -1,16 +1,19 @@
 import json
 from yggui.core.common import Binary, Runtime
+from yggui.core import platform as ygg_platform
 from yggui.exec.shell import Shell
 
 
 def get_self_info(use_socks) -> tuple[str | None, str | None, str | None]:
-    if not Runtime.admin_socket.exists():
+    if not ygg_platform.admin_available(Runtime.admin_socket):
         return None, None, None
 
-    cmd = (
-        f"{Binary.yggctl_path} -json "
-        f"-endpoint=unix://{str(Runtime.admin_socket)} getSelf"
-    )
+    cmd = ygg_platform.command_line([
+        Binary.yggctl_path,
+        "-json",
+        f"-endpoint={Runtime.admin_listen}",
+        "getSelf",
+    ])
     as_root = not use_socks
     try:
         output = Shell.run_capture(cmd, as_root=as_root)
@@ -24,13 +27,15 @@ def get_self_info(use_socks) -> tuple[str | None, str | None, str | None]:
 
 
 def get_peers_status(use_socks) -> dict[str, bool]:
-    if not Runtime.admin_socket.exists():
+    if not ygg_platform.admin_available(Runtime.admin_socket):
         return {}
 
-    cmd = (
-        f"{Binary.yggctl_path} -json "
-        f"-endpoint=unix://{str(Runtime.admin_socket)} getPeers"
-    )
+    cmd = ygg_platform.command_line([
+        Binary.yggctl_path,
+        "-json",
+        f"-endpoint={Runtime.admin_listen}",
+        "getPeers",
+    ])
     as_root = not use_socks
     def _parse_output(output: str) -> dict[str, bool]:
         data = json.loads(output)

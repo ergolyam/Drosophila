@@ -41,11 +41,13 @@ class MyApp(Adw.Application):
 
         css_provider = Gtk.CssProvider()
         css_provider.load_from_file(Gio.File.new_for_path(str(Gui.css_file)))
-        Gtk.StyleContext.add_provider_for_display(
-            Gdk.Display.get_default(),
-            css_provider,
-            Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION,
-        )
+        display = Gdk.Display.get_default()
+        if display is not None:
+            Gtk.StyleContext.add_provider_for_display(
+                display,
+                css_provider,
+                Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION,
+            )
 
     def on_activate(self, _app):
         if getattr(self, "win", None) is not None:
@@ -112,7 +114,7 @@ class MyApp(Adw.Application):
         self._make_row_clickable(self.address_row, lambda: self.address_row.get_subtitle())
         self._make_row_clickable(self.subnet_row, lambda: self.subnet_row.get_subtitle())
 
-        if Binary.pkexec_path is None:
+        if not Runtime.is_windows and Binary.pkexec_path is None:
             self.ygg_card.set_sensitive(False)
             self.ygg_card.set_subtitle("Polkit not found")
 

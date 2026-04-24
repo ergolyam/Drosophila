@@ -3,6 +3,7 @@ from yggui.funcs.config import ConfigManager
 from importlib.metadata import version, PackageNotFoundError
 from pathlib import Path
 from importlib.resources import files
+from yggui.core import platform as ygg_platform
 
 def which_in_flatpak(cmd: str) -> str | None:
     result = subprocess.run(
@@ -14,14 +15,6 @@ def which_in_flatpak(cmd: str) -> str | None:
     if result.returncode == 0:
         return result.stdout.strip()
     return None
-
-
-def xdg_config(app_name: str) -> Path:
-    default_base = Path.home() / ".config"
-    base = Path(os.environ.get("XDG_CONFIG_HOME", default_base)).expanduser()
-    cfg_dir = base / app_name
-    cfg_dir.mkdir(parents=True, exist_ok=True)
-    return cfg_dir
 
 
 def sha256sum(path, chunk_size=1024 * 1024):
@@ -62,14 +55,14 @@ class Regexp:
 
 class Runtime:
     app_id = "io.github.ergolyam.Drosophila"
+    is_windows = ygg_platform.is_windows()
     is_flatpak = Path('/.flatpak-info').is_file()
     is_appimage = os.getenv("APPIMAGE") is not None
-    runtime_dir = Path(os.environ.get('XDG_RUNTIME_DIR', '/tmp')) / 'yggui'
-    runtime_dir.mkdir(parents=True, exist_ok=True)
-    bin_dir = Path(os.environ.get('XDG_DATA_HOME', Path.home() / '.local/share')) / 'yggui'
-    bin_dir.mkdir(parents=True, exist_ok=True)
+    runtime_dir = ygg_platform.runtime_dir('yggui')
+    bin_dir = ygg_platform.data_dir('yggui')
     admin_socket = runtime_dir / 'yggdrasil.sock'
-    config_path = xdg_config('yggui') / 'config.json'
+    admin_listen = ygg_platform.admin_listen(admin_socket)
+    config_path = ygg_platform.config_path('yggui')
     config: ConfigManager
     try:
         version = version("Drosophila")
@@ -78,11 +71,17 @@ class Runtime:
 
 
 class Binary:
-    ygg_path = shutil.which('yggdrasil')
-    yggctl_path = shutil.which('yggdrasilctl')
-    yggstack_path = shutil.which('yggstack')
-    pkexec_path = shutil.which('pkexec')
-    if Runtime.is_flatpak or Runtime.is_appimage:
+    if Runtime.is_windows:
+        ygg_path = ygg_platform.binary_path('yggdrasil')
+        yggctl_path = ygg_platform.binary_path('yggdrasilctl')
+        yggstack_path = ygg_platform.binary_path('yggstack')
+        pkexec_path = None
+    else:
+        ygg_path = shutil.which('yggdrasil')
+        yggctl_path = shutil.which('yggdrasilctl')
+        yggstack_path = shutil.which('yggstack')
+        pkexec_path = shutil.which('pkexec')
+    if not Runtime.is_windows and (Runtime.is_flatpak or Runtime.is_appimage):
         if Runtime.is_flatpak:
             pkexec_path = which_in_flatpak('pkexec')
         if ygg_path:

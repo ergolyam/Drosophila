@@ -2,6 +2,7 @@ import subprocess
 import time
 from threading import Lock
 from yggui.core.common import Runtime, Binary, get_logger
+from yggui.core import platform as ygg_platform
 
 log = get_logger(__name__)
 
@@ -9,6 +10,7 @@ log = get_logger(__name__)
 class Shell:
     _procs: dict[bool, subprocess.Popen[str] | None] = {False: None, True: None}
     _locks: dict[bool, Lock] = {False: Lock(), True: Lock()}
+    _direct_procs: dict[int, subprocess.Popen] = {}
 
     @classmethod
     def _spawn_shell(cls, as_root: bool) -> subprocess.Popen[str]:
@@ -39,6 +41,22 @@ class Shell:
 
     @classmethod
     def is_alive(cls, pid: int, as_root: bool = False) -> bool:
+        if Runtime.is_windows:
+            proc = cls._direct_procs.get(pid)
+            if proc is not None:
+                alive = proc.poll() is None
+                if not alive:
+                    cls._direct_procs.pop(pid, None)
+                return alive
+            result = subprocess.run(
+                ["tasklist", "/FI", f"PID eq {pid}", "/FO", "CSV", "/NH"],
+                capture_output=True,
+                text=True,
+                check=False,
+                **ygg_platform.popen_kwargs(),
+            )
+            return str(pid) in result.stdout
+
         cmd = f"kill -0 {pid} 2>/dev/null && echo __ALIVE__"
         try:
             output = cls.run_capture(cmd, timeout=2.0, as_root=as_root)
@@ -48,6 +66,21 @@ class Shell:
 
     @classmethod
     def run_capture(cls, command: str, timeout: float = 15.0, as_root: bool = False) -> str:
+        if Runtime.is_windows:
+            result = subprocess.run(
+                command,
+                shell=True,
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+                check=False,
+                **ygg_platform.popen_kwargs(),
+            )
+            output = (result.stdout or "") + (result.stderr or "")
+            for line in output.splitlines():
+                log.info(line)
+            return output
+
         lock = cls._locks[as_root]
         with lock:
             proc = cls._ensure_shell(as_root)
@@ -93,6 +126,9 @@ class Shell:
 
     @classmethod
     def run_background(cls, command: str, as_root: bool = False) -> int:
+        if Runtime.is_windows:
+            return cls.run_background_args([command], as_root=as_root, shell=True)
+
         lock = cls._locks[as_root]
         with lock:
             proc = cls._ensure_shell(as_root)
@@ -131,7 +167,35 @@ class Shell:
             raise RuntimeError("Failed to capture background PID")
 
     @classmethod
+    def run_background_args(cls, command, as_root: bool = False, shell: bool = False) -> int:
+        if Runtime.is_windows:
+            proc = subprocess.Popen(
+                [str(arg) for arg in command] if not shell else str(command[0]),
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                text=True,
+                shell=shell,
+                **ygg_platform.popen_kwargs(),
+            )
+            cls._direct_procs[proc.pid] = proc
+            return proc.pid
+        return cls.run_background(ygg_platform.command_line(command), as_root=as_root)
+
+    @classmethod
     def run(cls, command: str, as_root: bool = False) -> None:
+        if Runtime.is_windows:
+            subprocess.Popen(
+                command,
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                text=True,
+                shell=True,
+                **ygg_platform.popen_kwargs(),
+            )
+            return
+
         lock = cls._locks[as_root]
         with lock:
             proc = cls._ensure_shell(as_root)
@@ -142,6 +206,27 @@ class Shell:
                     stdin.flush()
                 except BrokenPipeError:
                     pass
+
+    @classmethod
+    def stop_pid(cls, pid: int, as_root: bool = False) -> None:
+        if Runtime.is_windows:
+            proc = cls._direct_procs.pop(pid, None)
+            if proc is not None and proc.poll() is None:
+                try:
+                    proc.terminate()
+                    proc.wait(timeout=5)
+                except Exception:
+                    proc.kill()
+                return
+            subprocess.run(
+                ["taskkill", "/PID", str(pid), "/T", "/F"],
+                capture_output=True,
+                text=True,
+                check=False,
+                **ygg_platform.popen_kwargs(),
+            )
+            return
+        cls.run(f"/usr/bin/kill -s SIGINT {pid}", as_root=as_root)
 
     @classmethod
     def stop(cls, as_root: bool = False) -> None:

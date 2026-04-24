@@ -16,12 +16,12 @@ class ConfigManager:
         path: Path,
         *,
         ygg_path: str | None,
-        admin_socket: Path,
+        admin_listen: str,
         auto_init: bool = True,
     ) -> None:
         self.path = Path(path)
         self._ygg_path = ygg_path
-        self._admin_socket = Path(admin_socket)
+        self._admin_listen = admin_listen
         self._auto_init = auto_init
         self._lock = RLock()
         self._initialized = False
@@ -130,7 +130,7 @@ class ConfigManager:
         return dict(data)
 
     def _desired_admin_listen(self) -> str:
-        return f"unix://{self._admin_socket}"
+        return self._admin_listen
 
     def _looks_like_ygg_config(self, cfg: dict[str, Any]) -> bool:
         return all(k in cfg for k in self._REQUIRED_KEYS)
