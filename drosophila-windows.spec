@@ -1,7 +1,9 @@
 # -*- mode: python ; coding: utf-8 -*-
 
-import os, sys
+import os, runpy, sys
 from pathlib import Path
+
+from PyInstaller.config import CONF
 
 
 project_root = Path(SPECPATH)
@@ -18,9 +20,85 @@ datas = [
 binaries = []
 
 
-def add_data_tree(src: Path, dst: str) -> None:
+def add_data_tree(
+    src: Path,
+    dst: str,
+    exclude_relative: tuple[str, ...] = (),
+) -> None:
     if src.exists():
-        datas.append((str(src), dst))
+        excluded = {Path(item) for item in exclude_relative}
+        for item in src.rglob("*"):
+            if not item.is_file():
+                continue
+
+            relative = item.relative_to(src)
+            if relative in excluded:
+                continue
+
+            target = (Path(dst) / relative.parent).as_posix()
+            datas.append((str(item), target))
+
+
+def get_project_version() -> str:
+    errors = []
+
+    try:
+        from setuptools_scm import get_version
+
+        return get_version(
+            root=str(project_root),
+            version_scheme="guess-next-dev",
+            local_scheme="no-local-version",
+        )
+    except Exception as exc:
+        errors.append(f"setuptools_scm: {exc}")
+
+    generated_version = project_root / "yggui" / "_version.py"
+    if generated_version.exists():
+        try:
+            namespace = runpy.run_path(str(generated_version))
+            return str(namespace.get("__version__") or namespace["version"])
+        except Exception as exc:
+            errors.append(f"generated _version.py: {exc}")
+
+    try:
+        from importlib.metadata import PackageNotFoundError, version
+
+        return version("Drosophila")
+    except PackageNotFoundError as exc:
+        errors.append(f"installed metadata: {exc}")
+
+    raise RuntimeError(
+        "Unable to determine Drosophila version from dynamic project metadata. "
+        + " | ".join(errors)
+    )
+
+
+def build_dist_metadata() -> Path:
+    project_version = get_project_version()
+    metadata_root = Path(CONF.get("workpath") or project_root / "build")
+    metadata_dir = metadata_root / "_drosophila_metadata" / f"Drosophila-{project_version}.dist-info"
+    metadata_dir.mkdir(parents=True, exist_ok=True)
+    (metadata_dir / "METADATA").write_text(
+        "\n".join(
+            (
+                "Metadata-Version: 2.1",
+                "Name: Drosophila",
+                f"Version: {project_version}",
+                "",
+            )
+        ),
+        encoding="utf-8",
+    )
+    return metadata_dir
+
+
+dist_metadata = build_dist_metadata()
+datas.append((str(dist_metadata / "METADATA"), dist_metadata.name))
+
+app_icon = project_root / "xdg" / "io.github.ergolyam.Drosophila.svg"
+if app_icon.exists():
+    datas.append((str(app_icon), "share/icons/hicolor/scalable/apps"))
 
 
 for rel in (
@@ -34,7 +112,11 @@ for rel in (
     "share/libadwaita",
     "etc/gtk-4.0",
 ):
-    add_data_tree(mingw_prefix / rel, rel)
+    add_data_tree(
+        mingw_prefix / rel,
+        rel,
+        ("hicolor/icon-theme.cache",) if rel == "share/icons" else (),
+    )
 
 typelib_dir = mingw_prefix / "lib" / "girepository-1.0"
 if typelib_dir.exists():
