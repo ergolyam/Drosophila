@@ -21,4 +21,4 @@ appimage
 # Markdown
 *.md
 !readme.md
-!development.md
+!development*.md
