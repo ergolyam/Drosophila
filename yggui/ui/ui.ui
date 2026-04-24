@@ -5,7 +5,7 @@
 
   <object class="AdwApplicationWindow" id="main_window">
     <property name="accessible-role">meter</property>
-    <property name="title"> </property>
+    <property name="title">Drosophila</property>
     <property name="default-width">800</property>
     <property name="default-height">600</property>
 
