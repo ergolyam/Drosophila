@@ -169,15 +169,6 @@ def open_add_peer_dialog(app, prefill: dict | None = None):
     domain_error: Gtk.Label = builder.get_object("domain_error")
     sni_error:    Gtk.Label = builder.get_object("sni_error")
 
-    def _update_sni_row(_row=None, _pspec=None):
-        tls_selected = proto_row.get_selected() == 1
-        sni_group.set_visible(tls_selected)
-        if not tls_selected:
-            sni_error.add_css_class("hidden-error")
-        _validate()
-
-    proto_row.connect("notify::selected", _update_sni_row)
-
     def _validate(_row=None, _pspec=None):
         domain = domain_row.get_text().strip()
         sni    = sni_row.get_text().strip()
@@ -188,10 +179,10 @@ def open_add_peer_dialog(app, prefill: dict | None = None):
 
         if domain_has_text and not domain_valid:
             domain_row.add_css_class("error")
-            domain_error.remove_css_class("hidden-error")
+            domain_error.set_visible(True)
         else:
             domain_row.remove_css_class("error")
-            domain_error.add_css_class("hidden-error")
+            domain_error.set_visible(False)
 
         sni_valid = True
         if proto == "tls":
@@ -200,15 +191,25 @@ def open_add_peer_dialog(app, prefill: dict | None = None):
 
             if sni_has_text and not sni_valid:
                 sni_row.add_css_class("error")
-                sni_error.remove_css_class("hidden-error")
+                sni_error.set_visible(True)
             else:
                 sni_row.remove_css_class("error")
-                sni_error.add_css_class("hidden-error")
+                sni_error.set_visible(False)
         else:
             sni_row.remove_css_class("error")
-            sni_error.add_css_class("hidden-error")
+            sni_error.set_visible(False)
 
         dialog.set_response_enabled("add", domain_valid and sni_valid)
+
+    def _update_sni_row(_row=None, _pspec=None):
+        tls_selected = Common.protocols[proto_row.get_selected()] == "tls"
+        sni_group.set_visible(tls_selected)
+        if not tls_selected:
+            sni_row.remove_css_class("error")
+            sni_error.set_visible(False)
+        _validate()
+
+    proto_row.connect("notify::selected", _update_sni_row)
 
     domain_row.connect("notify::text", _validate)
     sni_row.connect("notify::text",    _validate)
