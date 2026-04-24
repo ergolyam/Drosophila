@@ -110,10 +110,27 @@ jobs:
         run: |
           $sevenZip = "${env:ProgramFiles}\7-Zip\7z.exe"
           $sfx = "${env:ProgramFiles}\7-Zip\7z.sfx"
-          Copy-Item $sfx dist\7z.sfx
-          Push-Location dist
-          & $sevenZip a -mx=9 -sfx7z.sfx ..\Drosophila-windows-x86_64.exe .\Drosophila
-          Pop-Location
+          $archive = "Drosophila-windows-x86_64.7z"
+          $output = "Drosophila-windows-x86_64.exe"
+          Remove-Item $archive -ErrorAction SilentlyContinue
+          Remove-Item $output -ErrorAction SilentlyContinue
+          & $sevenZip a -mx=9 $archive .\dist\Drosophila
+          if ($LASTEXITCODE -ne 0) {
+            exit $LASTEXITCODE
+          }
+          $outputStream = [System.IO.File]::Create($output)
+          try {
+            foreach ($input in @($sfx, $archive)) {
+              $inputStream = [System.IO.File]::OpenRead($input)
+              try {
+                $inputStream.CopyTo($outputStream)
+              } finally {
+                $inputStream.Dispose()
+              }
+            }
+          } finally {
+            $outputStream.Dispose()
+          }
 
       - name: Upload build
         uses: actions/upload-artifact@v4
