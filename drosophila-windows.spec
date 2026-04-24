@@ -74,12 +74,12 @@ def get_project_version() -> str:
     )
 
 
-def build_dist_metadata() -> Path:
+def build_metadata() -> Path:
     project_version = get_project_version()
     metadata_root = Path(CONF.get("workpath") or project_root / "build")
-    metadata_dir = metadata_root / "_drosophila_metadata" / f"Drosophila-{project_version}.dist-info"
-    metadata_dir.mkdir(parents=True, exist_ok=True)
-    (metadata_dir / "METADATA").write_text(
+    metadata_file = metadata_root / "_drosophila_metadata" / "METADATA"
+    metadata_file.parent.mkdir(parents=True, exist_ok=True)
+    metadata_file.write_text(
         "\n".join(
             (
                 "Metadata-Version: 2.1",
@@ -90,11 +90,11 @@ def build_dist_metadata() -> Path:
         ),
         encoding="utf-8",
     )
-    return metadata_dir
+    return metadata_file
 
 
-dist_metadata = build_dist_metadata()
-datas.append((str(dist_metadata / "METADATA"), dist_metadata.name))
+metadata_file = build_metadata()
+datas.append((str(metadata_file), "."))
 
 app_icon = project_root / "xdg" / "io.github.ergolyam.Drosophila.svg"
 if app_icon.exists():

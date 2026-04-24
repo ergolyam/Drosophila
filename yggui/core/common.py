@@ -1,6 +1,6 @@
 import shutil, os, subprocess, re, logging, hashlib
 from yggui.funcs.config import ConfigManager
-from importlib.metadata import version, PackageNotFoundError
+from importlib.metadata import PackageNotFoundError, version as package_version
 from pathlib import Path
 from importlib.resources import files
 from yggui.core import platform as ygg_platform
@@ -37,6 +37,31 @@ def copy_different(src, dst):
         shutil.copy2(src, dst)
 
 
+def _metadata_file_version(path: Path) -> str | None:
+    try:
+        with path.open(encoding="utf-8") as metadata:
+            for line in metadata:
+                key, separator, value = line.partition(":")
+                if separator and key.lower() == "version":
+                    version = value.strip()
+                    if version:
+                        return version
+    except OSError:
+        return None
+    return None
+
+
+def _app_version() -> str:
+    try:
+        return package_version("Drosophila")
+    except PackageNotFoundError:
+        if ygg_platform.is_windows() and ygg_platform.is_frozen():
+            version = _metadata_file_version(ygg_platform.app_dir() / "METADATA")
+            if version:
+                return version
+        return "0.0.0"
+
+
 class Common:
     urls = [ "https://publicpeers.neilalexander.dev/publicnodes.json", "https://peers.yggdrasil.link/publicnodes.json"]
     protocols = ["tcp", "tls", "ws", "wss", "quic"]
@@ -64,10 +89,7 @@ class Runtime:
     admin_listen = ygg_platform.admin_listen(admin_socket)
     config_path = ygg_platform.config_path('yggui')
     config: ConfigManager
-    try:
-        version = version("Drosophila")
-    except PackageNotFoundError:
-        version = "0.0.0"
+    version = _app_version()
 
 
 class Binary:
