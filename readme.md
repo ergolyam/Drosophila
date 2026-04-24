@@ -1,5 +1,5 @@
 # Drosophila
-A modern GTK 4 + libadwaita desktop interface for running, configuring and monitoring a local [Yggdrasil](https://github.com/yggdrasil-network/yggdrasil-go) overlay-network node on Linux.
+A modern GTK 4 + libadwaita desktop interface for running, configuring and monitoring a local [Yggdrasil](https://github.com/yggdrasil-network/yggdrasil-go) overlay-network node on Linux and Windows.
 
 ## Quick start
 
@@ -8,14 +8,19 @@ A modern GTK 4 + libadwaita desktop interface for running, configuring and monit
 ```bash
 flatpak remote-add --user Drosophila https://ergolyam.github.io/Drosophila/ergolyam.flatpakrepo
 flatpak install --user Drosophila io.github.ergolyam.Drosophila
-````
+```
+
+### Windows
+
+Download the latest `Drosophila-*-windows-x86_64.exe` from the [releases page](https://github.com/ergolyam/Drosophila/releases), run it and extract the portable `Drosophila` folder.
+Run `Drosophila.exe` from the extracted folder. The Windows build includes `yggdrasil.exe`, `yggdrasilctl.exe`, `yggstack.exe` and `wintun.dll`; `yggdrasil.conf` is created next to the executable.
 
 ### AppImage
 
 Download the latest AppImage from the [releases page](https://github.com/ergolyam/Drosophila/releases) and make it executable:
 
 ```bash
-chmod +x Drosophila-*.AppImage 
+chmod +x Drosophila-*.AppImage
 ./Drosophila-*.AppImage
 ```
 
@@ -26,8 +31,10 @@ pip install --upgrade git+https://github.com/ergolyam/Drosophila.git@main#egg=Dr
 python -m yggui
 ```
 
-> **Want to build and run from source?**
-> See the [deployment guide](.github/docs/development.md).
+## Documentation
+
+- [Linux development](.github/docs/development-linux.md)
+- [Windows development](.github/docs/development-windows.md)
 
 ## Screenshots
 
