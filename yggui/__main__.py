@@ -44,8 +44,6 @@ def main():
         auto_init=True,
     )
     Runtime.config = config
-    if Runtime.is_windows:
-        config.ensure_initialized()
     app = MyApp(
         application_id=Runtime.app_id
     )
