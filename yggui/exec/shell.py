@@ -176,7 +176,7 @@ class Shell:
                 stderr=subprocess.DEVNULL,
                 text=True,
                 shell=shell,
-                **ygg_platform.popen_kwargs(),
+                **ygg_platform.background_popen_kwargs(),
             )
             cls._direct_procs[proc.pid] = proc
             return proc.pid
@@ -211,20 +211,30 @@ class Shell:
     def stop_pid(cls, pid: int, as_root: bool = False) -> None:
         if Runtime.is_windows:
             proc = cls._direct_procs.pop(pid, None)
-            if proc is not None and proc.poll() is None:
-                try:
-                    proc.terminate()
-                    proc.wait(timeout=5)
-                except Exception:
-                    proc.kill()
+            if proc is not None and proc.poll() is not None:
                 return
-            subprocess.run(
-                ["taskkill", "/PID", str(pid), "/T", "/F"],
-                capture_output=True,
-                text=True,
-                check=False,
-                **ygg_platform.popen_kwargs(),
-            )
+            if ygg_platform.send_console_break(pid):
+                if proc is not None:
+                    try:
+                        proc.wait(timeout=15)
+                        return
+                    except subprocess.TimeoutExpired:
+                        log.info("Timed out waiting for process %s to stop", pid)
+                else:
+                    deadline = time.time() + 15
+                    while time.time() < deadline:
+                        if not cls.is_alive(pid):
+                            return
+                        time.sleep(0.2)
+                    log.info("Timed out waiting for process %s to stop", pid)
+            else:
+                log.info("Failed to send CTRL+BREAK to process %s", pid)
+            if proc is not None and proc.poll() is None:
+                proc.kill()
+                try:
+                    proc.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    pass
             return
         cls.run(f"/usr/bin/kill -s SIGINT {pid}", as_root=as_root)
 

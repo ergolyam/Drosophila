@@ -87,6 +87,46 @@ def popen_kwargs() -> dict:
     flags = 0
     if hasattr(subprocess, "CREATE_NO_WINDOW"):
         flags |= subprocess.CREATE_NO_WINDOW
+    return {"creationflags": flags}
+
+
+def background_popen_kwargs() -> dict:
+    if not is_windows():
+        return {}
+    import ctypes
+
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    user32 = ctypes.WinDLL("user32", use_last_error=True)
+    if not kernel32.GetConsoleWindow() and kernel32.AllocConsole():
+        console_window = kernel32.GetConsoleWindow()
+        if console_window:
+            user32.ShowWindow(console_window, 0)
+    flags = 0
     if hasattr(subprocess, "CREATE_NEW_PROCESS_GROUP"):
         flags |= subprocess.CREATE_NEW_PROCESS_GROUP
-    return {"creationflags": flags}
+    startupinfo = subprocess.STARTUPINFO()
+    startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+    startupinfo.wShowWindow = subprocess.SW_HIDE
+    return {"creationflags": flags, "startupinfo": startupinfo}
+
+
+def send_console_break(pid: int) -> bool:
+    if not is_windows():
+        return False
+    import ctypes
+    import time
+
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    if not kernel32.GetConsoleWindow():
+        return False
+    ignore_break = bool(kernel32.SetConsoleCtrlHandler(None, True))
+    try:
+        if not ignore_break:
+            return False
+        if not kernel32.GenerateConsoleCtrlEvent(1, pid):
+            return False
+        time.sleep(0.2)
+        return True
+    finally:
+        if ignore_break:
+            kernel32.SetConsoleCtrlHandler(None, False)
