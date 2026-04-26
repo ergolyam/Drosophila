@@ -96,9 +96,11 @@ jobs:
 
       - name: Checkout code
         uses: actions/checkout@v6
+        with:
+          path: source
 
       - name: Build yggdrasil and yggstack
-        uses: ./.github/actions/build-ygg
+        uses: ./source/.github/actions/build-ygg
         with:
           goos: linux
           goarch: ${{ matrix.arch == 'aarch64' && 'arm64' || 'amd64' }}
@@ -115,8 +117,8 @@ jobs:
           mkdir -p usr/share/metainfo
           cp ../yggdrasil/yggdrasil* usr/bin/
           cp ../yggstack/yggstack usr/bin/
-          cp $GITHUB_WORKSPACE/xdg/*.{desktop,svg} $PWD/
-          cp $GITHUB_WORKSPACE/xdg/*metainfo.xml usr/share/metainfo/
+          cp $GITHUB_WORKSPACE/source/xdg/*.{desktop,svg} $PWD/
+          cp $GITHUB_WORKSPACE/source/xdg/*metainfo.xml usr/share/metainfo/
 
           cat > entrypoint.sh <<'EOF'
           #!/usr/bin/env sh
@@ -128,7 +130,7 @@ jobs:
           chmod +x entrypoint.sh
 
           cat > requirements.txt <<EOF
-          Drosophila@file:///$GITHUB_WORKSPACE
+          Drosophila@file:///$GITHUB_WORKSPACE/source
           pygobject>=3.52.2
           EOF
         working-directory: appimage
