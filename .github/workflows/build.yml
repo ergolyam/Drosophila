@@ -23,7 +23,7 @@ jobs:
 
     steps:
       - name: Build flatpak
-        uses: ./source/.github/actions/build-flatpak
+        uses: ./.github/actions/build-flatpak
         with:
           build-type: inputs.flatpak
           arch-type: matrix.arch
@@ -39,7 +39,7 @@ jobs:
 
     steps:
       - name: Build appimage
-        uses: ./source/.github/actions/build-appimage
+        uses: ./.github/actions/build-appimage
         with:
           arch-type: matrix.arch
 
@@ -48,4 +48,4 @@ jobs:
 
     steps:
       - name: Build windows
-        uses: ./source/.github/actions/build-windows
+        uses: ./.github/actions/build-windows
