@@ -1,0 +1,59 @@
+name: Build yggdrasil and yggstack
+description: Checkout and build yggdrasil-go and yggstack binaries.
+
+inputs:
+  yggdrasil-ref:
+    description: yggdrasil-go git ref.
+    required: false
+    default: v0.5.13
+  yggstack-ref:
+    description: yggstack git ref.
+    required: false
+    default: 1.0.5
+  goos:
+    description: GOOS value for cross-compilation.
+    required: false
+    default: ''
+  goarch:
+    description: GOARCH value for cross-compilation.
+    required: false
+    default: ''
+  cgo-enabled:
+    description: CGO_ENABLED value.
+    required: false
+    default: '0'
+
+runs:
+  using: composite
+  steps:
+    - name: Checkout yggdrasil
+      uses: actions/checkout@v6
+      with:
+        repository: yggdrasil-network/yggdrasil-go
+        path: yggdrasil
+        ref: ${{ inputs.yggdrasil-ref }}
+
+    - name: Build yggdrasil
+      env:
+        CGO_ENABLED: ${{ inputs.cgo-enabled }}
+        GOOS: ${{ inputs.goos }}
+        GOARCH: ${{ inputs.goarch }}
+      run: ./build
+      shell: bash
+      working-directory: yggdrasil
+
+    - name: Checkout yggstack
+      uses: actions/checkout@v6
+      with:
+        repository: yggdrasil-network/yggstack
+        path: yggstack
+        ref: ${{ inputs.yggstack-ref }}
+
+    - name: Build yggstack
+      env:
+        CGO_ENABLED: ${{ inputs.cgo-enabled }}
+        GOOS: ${{ inputs.goos }}
+        GOARCH: ${{ inputs.goarch }}
+      run: ./build
+      shell: bash
+      working-directory: yggstack

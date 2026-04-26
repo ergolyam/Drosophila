@@ -1,0 +1,232 @@
+name: Build
+
+on:
+  workflow_call:
+    inputs:
+      flatpak:
+        type: string
+        required: true
+    secrets:
+      GPG_PRIVATE_KEY:
+        required: false
+
+env:
+  MANIFEST: flatpak/io.github.ergolyam.Drosophila.yml
+
+jobs:
+  build-flatpak-bundle:
+    if: inputs.flatpak == 'bundle'
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [ x86_64, aarch64 ]
+    runs-on: ${{ matrix.arch == 'aarch64' && 'ubuntu-24.04-arm' || 'ubuntu-latest' }}
+    container:
+      image: ghcr.io/flathub-infra/flatpak-github-actions:freedesktop-24.08
+      options: --privileged
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Build Flatpak bundle
+        uses: flatpak/flatpak-github-actions/flatpak-builder@v6
+        with:
+          manifest-path: ${{ env.MANIFEST }}
+          bundle: Drosophila-flatpak-${{ matrix.arch }}.flatpak
+          upload-artifact: false
+          arch: ${{ matrix.arch }}
+
+      - name: Upload Flatpak bundle artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Drosophila-flatpak-${{ matrix.arch }}
+          path: Drosophila-flatpak-${{ matrix.arch }}.flatpak
+          if-no-files-found: error
+
+  build-flatpak-repo:
+    if: inputs.flatpak == 'repo'
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [ x86_64, aarch64 ]
+    runs-on: ${{ matrix.arch == 'aarch64' && 'ubuntu-24.04-arm' || 'ubuntu-latest' }}
+    container:
+      image: ghcr.io/flathub-infra/flatpak-github-actions:freedesktop-24.08
+      options: --privileged
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Import GPG-key
+        id: gpg-key
+        uses: crazy-max/ghaction-import-gpg@v6
+        with:
+          gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
+
+      - name: Build Flatpak repo
+        uses: flatpak/flatpak-github-actions/flatpak-builder@v6
+        with:
+          manifest-path: ${{ env.MANIFEST }}
+          gpg-sign: ${{ steps.gpg-key.outputs.fingerprint }}
+          build-bundle: false
+          upload-artifact: false
+          arch: ${{ matrix.arch }}
+
+      - name: Upload Flatpak repo artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: repo-${{ matrix.arch }}
+          path: repo
+          if-no-files-found: error
+
+  build-appimage:
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [ x86_64, aarch64 ]
+    runs-on: ${{ matrix.arch == 'aarch64' && 'ubuntu-24.04-arm' || 'ubuntu-latest' }}
+    container:
+      image: docker.io/fedora:latest
+
+    steps:
+      - name: Install dependencies
+        run: dnf install -y git python3 python3-pip python3-devel golang gcc cairo-devel cairo-gobject-devel file
+
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Build yggdrasil and yggstack
+        uses: ./.github/actions/build-ygg
+        with:
+          goos: linux
+          goarch: ${{ matrix.arch == 'aarch64' && 'arm64' || 'amd64' }}
+
+      - name: Install python-appimage
+        run: python3 -m pip install --upgrade python-appimage
+
+      - name: Create AppimageDir
+        run: mkdir -p appimage
+
+      - name: Prepare AppimageDir
+        run: |
+          mkdir -p usr/bin
+          mkdir -p usr/share/metainfo
+          cp ../yggdrasil/yggdrasil* usr/bin/
+          cp ../yggstack/yggstack usr/bin/
+          cp $GITHUB_WORKSPACE/xdg/*.{desktop,svg} $PWD/
+          cp $GITHUB_WORKSPACE/xdg/*metainfo.xml usr/share/metainfo/
+
+          cat > entrypoint.sh <<'EOF'
+          #!/usr/bin/env sh
+          set -e
+          export PATH="$APPDIR/usr/bin:$PATH"
+          export XDG_DATA_DIRS="$APPDIR/usr/share:$XDG_DATA_DIRS"
+          exec {{ python-executable }} -I -m yggui "$@"
+          EOF
+          chmod +x entrypoint.sh
+
+          cat > requirements.txt <<EOF
+          Drosophila@file:///$GITHUB_WORKSPACE
+          pygobject>=3.52.2
+          EOF
+        working-directory: appimage
+
+      - name: Build AppImage
+        env:
+          PIP_NO_CACHE_DIR: 1
+        run: python-appimage build app -p 3.12 appimage -x appimage/usr
+
+      - name: Upload AppImage artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Drosophila-appimage-${{ matrix.arch }}
+          path: Drosophila-${{ matrix.arch }}.AppImage
+          if-no-files-found: error
+
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: stable
+
+      - name: Setup MSYS2
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          install: >-
+            git
+            mingw-w64-x86_64-adwaita-icon-theme
+            mingw-w64-x86_64-gdk-pixbuf2
+            mingw-w64-x86_64-gobject-introspection
+            mingw-w64-x86_64-gtk4
+            mingw-w64-x86_64-hicolor-icon-theme
+            mingw-w64-x86_64-libadwaita
+            mingw-w64-x86_64-librsvg
+            mingw-w64-x86_64-pyinstaller
+            mingw-w64-x86_64-pyinstaller-hooks-contrib
+            mingw-w64-x86_64-python
+            mingw-w64-x86_64-python-gobject
+            mingw-w64-x86_64-python-pip
+            mingw-w64-x86_64-python-setuptools-scm
+
+      - name: Install 7-Zip
+        run: choco install 7zip -y --no-progress
+
+      - name: Build yggdrasil and yggstack
+        uses: ./.github/actions/build-ygg
+        with:
+          goos: windows
+          goarch: amd64
+
+      - name: Download Wintun
+        run: |
+          curl.exe -fL -o wintun.zip https://www.wintun.net/builds/wintun-0.14.1.zip
+          echo "07c256185d6ee3652e09fa55c0b673e2624b565e02c4b9091c79ca7d2f24ef51  wintun.zip" | sha256sum -c -
+          "/c/Program Files/7-Zip/7z.exe" x -y wintun.zip -owintun
+          cp wintun/wintun/bin/amd64/wintun.dll .
+        shell: bash
+
+      - name: Prepare binaries
+        run: |
+          cp yggdrasil/yggdrasil.exe .
+          cp yggdrasil/yggdrasilctl.exe .
+          cp yggstack/yggstack.exe .
+        shell: bash
+
+      - name: Build Drosophila
+        run: |
+          /mingw64/bin/python -m PyInstaller \
+            --clean \
+            --noconfirm \
+            --distpath dist \
+            --workpath build \
+            drosophila-windows.spec
+        shell: msys2 {0}
+
+      - name: Package SFX
+        env:
+          ARCHIVE: Drosophila-windows-x86_64.7z
+          OUTPUT: Drosophila-windows-x86_64.exe
+        run: |
+          rm -f "$ARCHIVE" "$OUTPUT"
+          "/c/Program Files/7-Zip/7z.exe" a -mx=9 "$ARCHIVE" ./dist/Drosophila
+          cat "/c/Program Files/7-Zip/7z.sfx" "$ARCHIVE" > "$OUTPUT"
+        shell: bash
+
+      - name: Upload Windows artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Drosophila-windows-x86_64
+          path: Drosophila-windows-x86_64.exe
+          if-no-files-found: error
