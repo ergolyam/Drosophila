@@ -17,6 +17,7 @@ runs:
       uses: actions/checkout@v6
       with:
         path: source
+        fetch-depth: 0
 
     - name: Build yggdrasil and yggstack
       uses: ./.github/actions/build-ygg
