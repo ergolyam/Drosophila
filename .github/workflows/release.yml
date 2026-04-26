@@ -34,7 +34,7 @@ jobs:
         run: gpg --export ${{ steps.gpg-key.outputs.fingerprint }} > pubkey.gpg
 
       - name: Download Flatpak repos
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           pattern: repo-*
           path: repos
@@ -100,7 +100,7 @@ jobs:
 
     steps:
       - name: Download release assets
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           pattern: Drosophila-*
           path: builds
@@ -115,7 +115,7 @@ jobs:
         working-directory: builds
 
       - name: Create release
-        uses: softprops/action-gh-release@v2.3.2
+        uses: softprops/action-gh-release@v3
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
