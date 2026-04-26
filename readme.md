@@ -12,8 +12,7 @@ flatpak install --user Drosophila io.github.ergolyam.Drosophila
 
 ### Windows
 
-Download the latest `Drosophila-*-windows-x86_64.exe` from the [releases page](https://github.com/ergolyam/Drosophila/releases), run it and extract the portable `Drosophila` folder.
-Run `Drosophila.exe` from the extracted folder. The Windows build includes `yggdrasil.exe`, `yggdrasilctl.exe`, `yggstack.exe` and `wintun.dll`; `yggdrasil.conf` is created next to the executable.
+Download the latest Windows build from the [releases page](https://github.com/ergolyam/Drosophila/releases) and run it and extract the portable app folder. Run `Drosophila.exe` from the extracted folder
 
 ### AppImage
 
