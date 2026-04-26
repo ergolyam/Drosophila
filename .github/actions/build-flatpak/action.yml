@@ -1,0 +1,81 @@
+name: Build flatpak
+description: Checkout and compile the Flatpak bundle or repo, then publish it to the artefacts.
+
+inputs:
+  build-type:
+    description: Build type, bundle or repo
+    required: true
+  arch-type:
+    description: Architecture type for the build
+    required: true
+  gpg-private-key:
+    description: GPG private key for repository builds
+    required: false
+    default: ''
+
+runs:
+  using: composite
+  steps:
+    - name: Checkout code
+      uses: actions/checkout@v6
+      with:
+        fetch-depth: 0
+
+    - name: Import GPG-key
+      if: inputs.build-type == 'repo'
+      id: gpg-key
+      uses: crazy-max/ghaction-import-gpg@v6
+      with:
+        gpg_private_key: ${{ inputs.gpg-private-key }}
+
+    - name: Prepare Flatpak values
+      id: flatpak-values
+      shell: bash
+      env:
+        BUILD_TYPE: ${{ inputs.build-type }}
+        ARCH_TYPE: ${{ inputs.arch-type }}
+        GPG_FINGERPRINT: ${{ steps.gpg-key.outputs.fingerprint }}
+        FLATPAK_ID: io.github.ergolyam.Drosophila
+        BUNDLE_PREFIX: Drosophila-flatpak
+      run: |
+        echo "manifest_path=flatpak/${FLATPAK_ID}.yml" >> "${GITHUB_OUTPUT}"
+
+        case "${BUILD_TYPE}" in
+          bundle)
+            echo "build_bundle=true" >> "${GITHUB_OUTPUT}"
+            echo "bundle=${BUNDLE_PREFIX}-${ARCH_TYPE}.flatpak" >> "${GITHUB_OUTPUT}"
+            echo "gpg_sign=" >> "${GITHUB_OUTPUT}"
+            echo "artifact_name=${BUNDLE_PREFIX}-${ARCH_TYPE}" >> "${GITHUB_OUTPUT}"
+            echo "artifact_path=${BUNDLE_PREFIX}-${ARCH_TYPE}.flatpak" >> "${GITHUB_OUTPUT}"
+            ;;
+
+          repo)
+            echo "build_bundle=false" >> "${GITHUB_OUTPUT}"
+            echo "bundle=" >> "${GITHUB_OUTPUT}"
+            echo "gpg_sign=${GPG_FINGERPRINT}" >> "${GITHUB_OUTPUT}"
+            echo "artifact_name=repo-${ARCH_TYPE}" >> "${GITHUB_OUTPUT}"
+            echo "artifact_path=repo" >> "${GITHUB_OUTPUT}"
+            ;;
+
+          *)
+            echo "::error::Unsupported build type: ${BUILD_TYPE}. Expected 'bundle' or 'repo'."
+            exit 1
+            ;;
+        esac
+
+    - name: Build Flatpak ${{ inputs.build-type }}
+      uses: flatpak/flatpak-github-actions/flatpak-builder@v6
+      with:
+        manifest-path: ${{ steps.flatpak-values.outputs.manifest_path }}
+        arch: ${{ inputs.arch-type }}
+        upload-artifact: false
+        build-bundle: ${{ steps.flatpak-values.outputs.build_bundle }}
+        bundle: ${{ steps.flatpak-values.outputs.bundle }}
+        gpg-sign: ${{ steps.flatpak-values.outputs.gpg_sign }}
+
+    - name: Upload Flatpak ${{ inputs.build-type }} artifact
+      uses: actions/upload-artifact@v7
+      with:
+        name: ${{ steps.flatpak-values.outputs.artifact_name }}
+        path: ${{ steps.flatpak-values.outputs.artifact_path }}
+        if-no-files-found: error

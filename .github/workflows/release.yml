@@ -1,68 +1,27 @@
-name: Build and Push Flatpak manifest
+name: Release
 
 on:
   push:
     tags:
       - 'v[0-9]+.[0-9]+.[0-9]+*'
-  workflow_dispatch:
-    inputs:
-      tag_name:
-        description: 'Tag for assembly (e.g., v1.0.1)'
-        required: true
-        type: string
 
-env:
-  MANIFEST: flatpak/io.github.ergolyam.Drosophila.yml
+permissions:
+  contents: write
 
 jobs:
   build:
-    strategy:
-      fail-fast: false
-      matrix:
-        arch: [ x86_64, aarch64 ]
-    runs-on: ${{ matrix.arch == 'aarch64' && 'ubuntu-22.04-arm' || 'ubuntu-latest' }}
-    container:
-      image: ghcr.io/flathub-infra/flatpak-github-actions:freedesktop-24.08
-      options: --privileged
-    permissions:
-      contents: write
+    uses: ./.github/workflows/build.yml
+    with:
+      flatpak: repo
+    secrets:
+      GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
 
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ inputs.tag_name }}
-
-      - name: Import GPG-key
-        id: gpg-key
-        uses: crazy-max/ghaction-import-gpg@v6
-        with:
-          gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
-
-      - name: Build Flatpak
-        uses: flatpak/flatpak-github-actions/flatpak-builder@v6
-        with:
-          manifest-path: ${{ env.MANIFEST }}
-          gpg-sign: ${{ steps.gpg-key.outputs.fingerprint }}
-          build-bundle: false
-          upload-artifact: false
-          arch: ${{ matrix.arch }}
-
-      - name: Upload repo ${{ matrix.arch }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: repo-${{ matrix.arch }}
-          path: repo
-
-
-  publish:
+  publish-flatpak:
     needs: build
     runs-on: ubuntu-latest
     container:
       image: ghcr.io/flathub-infra/flatpak-github-actions:freedesktop-24.08
       options: --privileged
-    permissions:
-      contents: write
 
     steps:
       - name: Import GPG-key
@@ -72,17 +31,16 @@ jobs:
           gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
 
       - name: Prepare GPG-pubkey
-        run: |
-          gpg --export ${{ steps.gpg-key.outputs.fingerprint }} > pubkey.gpg
+        run: gpg --export ${{ steps.gpg-key.outputs.fingerprint }} > pubkey.gpg
 
-      - name: Download all repos
-        uses: actions/download-artifact@v4
+      - name: Download Flatpak repos
+        uses: actions/download-artifact@v8
         with:
           pattern: repo-*
           path: repos
 
       - name: Checkout gh-pages
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           ref: gh-pages
           path: old-pages
@@ -122,7 +80,7 @@ jobs:
         env:
           PAGES_REPO_URL: ${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}
         run: |
-          cat > ./root/${{ github.repository_owner }}.flatpakrepo << EOF 
+          cat > ./root/${{ github.repository_owner }}.flatpakrepo << EOF
           [Flatpak Repo]
           Title=$PAGES_REPO_URL
           Url=https://$PAGES_REPO_URL/repo/
@@ -135,3 +93,34 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./root
           force_orphan: true
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download release assets
+        uses: actions/download-artifact@v8
+        with:
+          pattern: Drosophila-*
+          path: builds
+          merge-multiple: true
+
+      - name: Rename release assets
+        run: |
+          for f in Drosophila-*.AppImage Drosophila-*.exe; do
+            [ -e "$f" ] || continue
+            mv "$f" "Drosophila-${{ github.ref_name }}-${f#Drosophila-}"
+          done
+        working-directory: builds
+
+      - name: Create release
+        uses: softprops/action-gh-release@v3
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: Drosophila ${{ github.ref_name }}
+          generate_release_notes: true
+          prerelease: false
+          files: builds/Drosophila-*

@@ -1,0 +1,67 @@
+name: Build
+
+on:
+  workflow_call:
+    inputs:
+      flatpak:
+        type: string
+        required: true
+    secrets:
+      GPG_PRIVATE_KEY:
+        required: false
+
+jobs:
+  build-flatpak:
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [ x86_64, aarch64 ]
+    runs-on: ${{ matrix.arch == 'aarch64' && 'ubuntu-24.04-arm' || 'ubuntu-latest' }}
+    container:
+      image: ghcr.io/flathub-infra/flatpak-github-actions:freedesktop-24.08
+      options: --privileged
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          sparse-checkout: .github/actions
+
+      - name: Build flatpak
+        uses: ./.github/actions/build-flatpak
+        with:
+          build-type: ${{ inputs.flatpak }}
+          arch-type: ${{ matrix.arch }}
+          gpg-private-key: ${{ secrets.GPG_PRIVATE_KEY }}
+
+  build-appimage:
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [ x86_64, aarch64 ]
+    runs-on: ${{ matrix.arch == 'aarch64' && 'ubuntu-24.04-arm' || 'ubuntu-latest' }}
+    container:
+      image: docker.io/fedora:latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          sparse-checkout: .github/actions
+
+      - name: Build appimage
+        uses: ./.github/actions/build-appimage
+        with:
+          arch-type: ${{ matrix.arch }}
+
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          sparse-checkout: .github/actions
+
+      - name: Build windows
+        uses: ./.github/actions/build-windows
