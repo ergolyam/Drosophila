@@ -1,0 +1,87 @@
+name: Build windows
+description: Checkout and build the windows executable, then publish it to the artifacts.
+
+runs:
+  using: composite
+  steps:
+    - name: Checkout code
+      uses: actions/checkout@v6
+      with:
+        fetch-depth: 0
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: stable
+
+    - name: Setup MSYS2
+      uses: msys2/setup-msys2@v2
+      with:
+        msystem: MINGW64
+        update: true
+        install: >-
+          git
+          mingw-w64-x86_64-adwaita-icon-theme
+          mingw-w64-x86_64-gdk-pixbuf2
+          mingw-w64-x86_64-gobject-introspection
+          mingw-w64-x86_64-gtk4
+          mingw-w64-x86_64-hicolor-icon-theme
+          mingw-w64-x86_64-libadwaita
+          mingw-w64-x86_64-librsvg
+          mingw-w64-x86_64-pyinstaller
+          mingw-w64-x86_64-pyinstaller-hooks-contrib
+          mingw-w64-x86_64-python
+          mingw-w64-x86_64-python-gobject
+          mingw-w64-x86_64-python-pip
+          mingw-w64-x86_64-python-setuptools-scm
+
+    - name: Install 7-Zip
+      run: choco install 7zip -y --no-progress
+
+    - name: Build yggdrasil and yggstack
+      uses: ./.github/actions/build-ygg
+      with:
+        goos: windows
+        goarch: amd64
+
+    - name: Download Wintun
+      run: |
+        curl.exe -fL -o wintun.zip https://www.wintun.net/builds/wintun-0.14.1.zip
+        echo "07c256185d6ee3652e09fa55c0b673e2624b565e02c4b9091c79ca7d2f24ef51  wintun.zip" | sha256sum -c -
+        "/c/Program Files/7-Zip/7z.exe" x -y wintun.zip -owintun
+        cp wintun/wintun/bin/amd64/wintun.dll .
+      shell: bash
+
+    - name: Prepare binaries
+      run: |
+        cp yggdrasil/yggdrasil.exe .
+        cp yggdrasil/yggdrasilctl.exe .
+        cp yggstack/yggstack.exe .
+      shell: bash
+
+    - name: Build Drosophila
+      run: |
+        /mingw64/bin/python -m PyInstaller \
+          --clean \
+          --noconfirm \
+          --distpath dist \
+          --workpath build \
+          drosophila-windows.spec
+      shell: msys2 {0}
+
+    - name: Package SFX
+      env:
+        ARCHIVE: Drosophila-windows-x86_64.7z
+        OUTPUT: Drosophila-windows-x86_64.exe
+      run: |
+        rm -f "$ARCHIVE" "$OUTPUT"
+        "/c/Program Files/7-Zip/7z.exe" a -mx=9 "$ARCHIVE" ./dist/Drosophila
+        cat "/c/Program Files/7-Zip/7z.sfx" "$ARCHIVE" > "$OUTPUT"
+      shell: bash
+
+    - name: Upload Windows artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: Drosophila-windows-x86_64
+        path: Drosophila-windows-x86_64.exe
+        if-no-files-found: error

@@ -1,0 +1,43 @@
+name: Build flatpak
+description: Checkout and compile the Flatpak bundle or repo, then publish it to the artefacts.
+
+inputs:
+  build-type:
+    description: Build type, bundle or repo
+    required: true
+  arch-type:
+    description: Architecture type for the build
+    required: true
+
+env:
+  MANIFEST: flatpak/io.github.ergolyam.Drosophila.yml
+
+runs:
+  using: composite
+  steps:
+    - name: Checkout code
+      uses: actions/checkout@v6
+
+    - name: Import GPG-key
+      if: inputs.build-type == 'repo'
+      id: gpg-key
+      uses: crazy-max/ghaction-import-gpg@v6
+      with:
+        gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
+
+    - name: Build Flatpak ${{ inputs.build-type }}
+      uses: flatpak/flatpak-github-actions/flatpak-builder@v6
+      with:
+        manifest-path: ${{ env.MANIFEST }}
+        arch: ${{ inputs.arch-type }}
+        upload-artifact: false
+        build-bundle: ${{ inputs.build-type == 'bundle' }}
+        bundle: ${{ inputs.build-type == 'bundle' && format('Drosophila-flatpak-{0}.flatpak', inputs.arch-type) || '' }}
+        gpg-sign: ${{ inputs.build-type == 'repo' && steps.gpg-key.outputs.fingerprint || '' }}
+
+    - name: Upload Flatpak ${{ inputs.build-type }} artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ inputs.build-type == 'repo' && format('repo-{0}', inputs.arch-type) || format('Drosophila-flatpak-{0}', inputs.arch-type) }}
+        path: ${{ inputs.build-type == 'repo' && 'repo' || format('Drosophila-flatpak-{0}.flatpak', inputs.arch-type) }}
+        if-no-files-found: error
