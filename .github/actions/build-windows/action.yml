@@ -37,6 +37,7 @@ runs:
 
     - name: Install 7-Zip
       run: choco install 7zip -y --no-progress
+      shell: powershell
 
     - name: Build yggdrasil and yggstack
       uses: ./.github/actions/build-ygg

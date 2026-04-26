@@ -8,9 +8,10 @@ inputs:
   arch-type:
     description: Architecture type for the build
     required: true
-
-env:
-  MANIFEST: flatpak/io.github.ergolyam.Drosophila.yml
+  gpg-private-key:
+    description: GPG private key for repository builds
+    required: false
+    default: ''
 
 runs:
   using: composite
@@ -23,12 +24,12 @@ runs:
       id: gpg-key
       uses: crazy-max/ghaction-import-gpg@v6
       with:
-        gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
+        gpg_private_key: ${{ inputs.gpg-private-key }}
 
     - name: Build Flatpak ${{ inputs.build-type }}
       uses: flatpak/flatpak-github-actions/flatpak-builder@v6
       with:
-        manifest-path: ${{ env.MANIFEST }}
+        manifest-path: flatpak/io.github.ergolyam.Drosophila.yml
         arch: ${{ inputs.arch-type }}
         upload-artifact: false
         build-bundle: ${{ inputs.build-type == 'bundle' }}

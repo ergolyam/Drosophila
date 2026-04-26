@@ -22,11 +22,17 @@ jobs:
       options: --privileged
 
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          sparse-checkout: .github/actions
+
       - name: Build flatpak
         uses: ./.github/actions/build-flatpak
         with:
-          build-type: inputs.flatpak
-          arch-type: matrix.arch
+          build-type: ${{ inputs.flatpak }}
+          arch-type: ${{ matrix.arch }}
+          gpg-private-key: ${{ secrets.GPG_PRIVATE_KEY }}
 
   build-appimage:
     strategy:
@@ -38,14 +44,24 @@ jobs:
       image: docker.io/fedora:latest
 
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          sparse-checkout: .github/actions
+
       - name: Build appimage
         uses: ./.github/actions/build-appimage
         with:
-          arch-type: matrix.arch
+          arch-type: ${{ matrix.arch }}
 
   build-windows:
     runs-on: windows-latest
 
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          sparse-checkout: .github/actions
+
       - name: Build windows
         uses: ./.github/actions/build-windows
