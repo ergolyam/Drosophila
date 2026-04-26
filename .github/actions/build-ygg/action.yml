@@ -26,6 +26,11 @@ inputs:
 runs:
   using: composite
   steps:
+    - name: Set up Go
+      uses: actions/setup-go@v6
+      with:
+        go-version: stable
+
     - name: Checkout yggdrasil
       uses: actions/checkout@v6
       with:
