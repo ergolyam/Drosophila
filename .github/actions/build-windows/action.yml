@@ -55,6 +55,12 @@ runs:
         cp yggstack/yggstack.exe .
       shell: bash
 
+    - name: Debug version state
+      run: |
+        git describe --tags --long --dirty --match "*[0-9]*"
+        git status --short --untracked-files=no
+      shell: bash
+
     - name: Build Drosophila
       run: |
         /mingw64/bin/python -m PyInstaller \
