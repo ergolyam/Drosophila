@@ -10,7 +10,7 @@ runs:
         fetch-depth: 0
 
     - name: Set up Go
-      uses: actions/setup-go@v5
+      uses: actions/setup-go@v6
       with:
         go-version: stable
 
@@ -81,7 +81,7 @@ runs:
       shell: bash
 
     - name: Upload Windows artifact
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: Drosophila-windows-x86_64
         path: Drosophila-windows-x86_64.exe

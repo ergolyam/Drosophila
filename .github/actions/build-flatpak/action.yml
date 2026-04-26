@@ -72,7 +72,7 @@ runs:
         gpg-sign: ${{ steps.flatpak-values.outputs.gpg_sign }}
 
     - name: Upload Flatpak ${{ inputs.build-type }} artifact
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: ${{ steps.flatpak-values.outputs.artifact_name }}
         path: ${{ steps.flatpak-values.outputs.artifact_path }}
