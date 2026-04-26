@@ -96,12 +96,9 @@ def background_popen_kwargs() -> dict:
     import ctypes
 
     kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
-    user32 = ctypes.WinDLL("user32", use_last_error=True)
-    if not kernel32.GetConsoleWindow() and kernel32.AllocConsole():
-        console_window = kernel32.GetConsoleWindow()
-        if console_window:
-            user32.ShowWindow(console_window, 0)
     flags = 0
+    if not kernel32.GetConsoleWindow() and hasattr(subprocess, "CREATE_NEW_CONSOLE"):
+        flags |= subprocess.CREATE_NEW_CONSOLE
     if hasattr(subprocess, "CREATE_NEW_PROCESS_GROUP"):
         flags |= subprocess.CREATE_NEW_PROCESS_GROUP
     startupinfo = subprocess.STARTUPINFO()
@@ -117,8 +114,20 @@ def send_console_break(pid: int) -> bool:
     import time
 
     kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel32.GetStdHandle.argtypes = [ctypes.c_ulong]
+    kernel32.GetStdHandle.restype = ctypes.c_void_p
+    kernel32.SetStdHandle.argtypes = [ctypes.c_ulong, ctypes.c_void_p]
+    kernel32.SetStdHandle.restype = ctypes.c_bool
+    std_handles = (
+        (-10, kernel32.GetStdHandle(-10)),
+        (-11, kernel32.GetStdHandle(-11)),
+        (-12, kernel32.GetStdHandle(-12)),
+    )
+    attached = False
     if not kernel32.GetConsoleWindow():
-        return False
+        if not kernel32.AttachConsole(pid):
+            return False
+        attached = True
     ignore_break = bool(kernel32.SetConsoleCtrlHandler(None, True))
     try:
         if not ignore_break:
@@ -130,3 +139,7 @@ def send_console_break(pid: int) -> bool:
     finally:
         if ignore_break:
             kernel32.SetConsoleCtrlHandler(None, False)
+        if attached:
+            kernel32.FreeConsole()
+            for std_handle, value in std_handles:
+                kernel32.SetStdHandle(std_handle, value)

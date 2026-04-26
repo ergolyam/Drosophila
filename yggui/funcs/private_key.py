@@ -1,6 +1,7 @@
 import subprocess, json
 
 from yggui.core.common import Runtime, Binary
+from yggui.core import platform as ygg_platform
 from gi.repository import Gtk  # type: ignore
 
 
@@ -24,7 +25,13 @@ def on_focus_leave(app, _controller):
 def regenerate(app):
     try:
         cmd = [Binary.ygg_path, "-genconf", "-json"]
-        result = subprocess.run(cmd, capture_output=True, check=True, text=True)
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            check=True,
+            text=True,
+            **ygg_platform.popen_kwargs(),
+        )
         generated = json.loads(result.stdout)
         new_key = generated.get("PrivateKey", "").strip()
     except Exception:
@@ -72,4 +79,3 @@ def load_private_key(app):
 
 if __name__ == "__main__":
     raise RuntimeError("This module should be run only via main.py")
-

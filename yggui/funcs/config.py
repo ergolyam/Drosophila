@@ -7,6 +7,8 @@ from pathlib import Path
 from threading import RLock
 from typing import Any
 
+from yggui.core import platform as ygg_platform
+
 
 class ConfigManager:
     _REQUIRED_KEYS: set[str] = {"Listen", "IfName"}
@@ -143,6 +145,7 @@ class ConfigManager:
             capture_output=True,
             text=True,
             check=True,
+            **ygg_platform.popen_kwargs(),
         )
         return json.loads(res.stdout) or {}
 
