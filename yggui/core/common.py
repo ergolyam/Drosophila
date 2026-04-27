@@ -1,9 +1,10 @@
-import shutil, os, subprocess, re, logging, hashlib
+import shutil, os, subprocess, re, hashlib
 from yggui.funcs.config import ConfigManager
 from importlib.metadata import PackageNotFoundError, version as package_version
 from pathlib import Path
 from importlib.resources import files
 from yggui.core import platform as ygg_platform
+from yggui.core.logs import get_logger
 
 def which_in_flatpak(cmd: str) -> str | None:
     result = subprocess.run(
@@ -123,20 +124,3 @@ class Gui:
     peer_discovery_ui_file = files('yggui.ui').joinpath('peer_discovery.ui')
     about_ui_file = files("yggui.ui").joinpath("about_dialog.ui")
     css_file = files('yggui.ui').joinpath('ui.css')
-
-
-def get_logger(name: str) -> logging.Logger:
-    logger = logging.getLogger(name)
-
-    if not logger.handlers:
-        logger.setLevel(logging.INFO)
-
-        fname = name.rsplit('.', 1)[-1]
-        file_path = Runtime.runtime_dir / f'{fname}.log'
-        handler = logging.FileHandler(file_path, encoding='utf-8', delay=True)
-        handler.setFormatter(logging.Formatter('%(asctime)s  %(message)s'))
-
-        logger.addHandler(handler)
-        logger.propagate = False
-
-    return logger

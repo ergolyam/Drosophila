@@ -4,7 +4,21 @@ from yggui.core.runtime import configure_runtime
 configure_runtime()
 from yggui.funcs.config import ConfigManager
 from yggui.core.common import Binary, Runtime
-from yggui.core.window import MyApp
+from yggui.core.logs import configure_logging, get_logger
+
+
+log = get_logger(__name__)
+
+
+def _extract_debug_arg(argv: list[str]) -> tuple[bool, list[str]]:
+    debug = False
+    filtered = []
+    for arg in argv:
+        if arg == "--debug":
+            debug = True
+            continue
+        filtered.append(arg)
+    return debug, filtered
 
 
 def _ensure_prerequisites():
@@ -35,7 +49,15 @@ def _ensure_prerequisites():
             )
 
 
-def main():
+def main(argv: list[str] | None = None):
+    debug, app_argv = _extract_debug_arg(list(sys.argv if argv is None else argv))
+    sys.argv = app_argv
+    configure_logging(debug)
+    if debug:
+        log.info("Debug logging enabled")
+
+    from yggui.core.window import MyApp
+
     _ensure_prerequisites()
     config = ConfigManager(
         Runtime.config_path,
@@ -47,7 +69,7 @@ def main():
     app = MyApp(
         application_id=Runtime.app_id
     )
-    app.run(sys.argv)
+    return app.run(app_argv)
 
 
 if __name__ == "__main__":

@@ -14,6 +14,10 @@ from yggui.exec.toggle import (
 )
 from yggui.exec.shell import Shell
 from yggui.exec.get_info import get_self_info
+from yggui.core.logs import get_logger
+
+
+log = get_logger(__name__)
 
 
 def drain_pending(app) -> bool:
@@ -28,6 +32,7 @@ def drain_pending(app) -> bool:
 
 
 def request_ygg_state(app, desired: bool) -> None:
+    log.info("Yggdrasil switch state requested: %s", "on" if desired else "off")
     app.pending_switch_state = desired
     if not getattr(app, "switch_locked", False):
         GLib.idle_add(app.ygg_card.set_enable_expansion, desired)
@@ -44,6 +49,7 @@ def set_switch_lock(app, locked: bool) -> None:
 
 
 def show_error_dialog(app, message: str) -> None:
+    log.info("Yggdrasil error shown: %s", message)
     dialog = Adw.AlertDialog(
         heading="Yggdrasil Error",
         body=message,
@@ -89,6 +95,7 @@ def _monitor_process(app, pid: int, use_socks: bool) -> None:
                 if current_pid == pid:
                     ygg_app = 'Yggstack' if use_socks else 'Yggdrasil'
                     msg = f"The {ygg_app} process exited unexpectedly."
+                    log.info("%s process exited unexpectedly", ygg_app)
                     GLib.idle_add(on_process_error, app, msg)
                 return
 
@@ -119,11 +126,14 @@ def poll_for_addresses(app, use_socks) -> None:
 
 def switch_switched(app, _switch, state: bool) -> None:
     use_socks = getattr(app, "socks_config", {}).get("enabled", False)
+    ygg_app = 'Yggstack' if use_socks else 'Yggdrasil'
+    log.info("%s switch toggled: %s", ygg_app, "on" if state else "off")
     if getattr(app, "switch_locked", False):
         app.pending_switch_state = state
         running = app.ygg_pid is not None or app.socks_pid is not None
         if state is not running:
             app.ygg_card.set_enable_expansion(running)
+        log.info("%s switch change queued while current transition finishes", ygg_app)
         return
 
     if state and app.ygg_pid is None and app.socks_pid is None:
@@ -154,6 +164,7 @@ def switch_switched(app, _switch, state: bool) -> None:
         set_switch_lock(app, True)
         pid = app.ygg_pid or app.socks_pid
         use_socks = pid is app.socks_pid
+        ygg_app = 'Yggstack' if use_socks else 'Yggdrasil'
         app.ygg_pid = app.socks_pid = None
         if pid:
             stop_ygg(use_socks, pid)

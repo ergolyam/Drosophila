@@ -81,8 +81,10 @@ def command_line(args) -> str:
     return " ".join(shlex.quote(arg) for arg in values)
 
 
-def popen_kwargs() -> dict:
+def popen_kwargs(debug: bool = False) -> dict:
     if not is_windows():
+        return {}
+    if debug:
         return {}
     flags = 0
     if hasattr(subprocess, "CREATE_NO_WINDOW"):
@@ -90,9 +92,14 @@ def popen_kwargs() -> dict:
     return {"creationflags": flags}
 
 
-def background_popen_kwargs() -> dict:
+def background_popen_kwargs(debug: bool = False) -> dict:
     if not is_windows():
         return {}
+    if debug:
+        flags = 0
+        if hasattr(subprocess, "CREATE_NEW_PROCESS_GROUP"):
+            flags |= subprocess.CREATE_NEW_PROCESS_GROUP
+        return {"creationflags": flags}
     import ctypes
 
     kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)

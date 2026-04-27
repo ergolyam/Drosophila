@@ -1,8 +1,14 @@
 import subprocess
 import time
 from threading import Lock
-from yggui.core.common import Runtime, Binary, get_logger
+from yggui.core.common import Runtime, Binary
 from yggui.core import platform as ygg_platform
+from yggui.core.logs import (
+    debug_enabled,
+    get_logger,
+    shell_background_redirect,
+    subprocess_output_kwargs,
+)
 
 log = get_logger(__name__)
 
@@ -53,7 +59,7 @@ class Shell:
                 capture_output=True,
                 text=True,
                 check=False,
-                **ygg_platform.popen_kwargs(),
+                **ygg_platform.popen_kwargs(debug_enabled()),
             )
             return str(pid) in result.stdout
 
@@ -74,7 +80,7 @@ class Shell:
                 text=True,
                 timeout=timeout,
                 check=False,
-                **ygg_platform.popen_kwargs(),
+                **ygg_platform.popen_kwargs(debug_enabled()),
             )
             output = (result.stdout or "") + (result.stderr or "")
             for line in output.splitlines():
@@ -141,7 +147,8 @@ class Shell:
             sentinel = "__YGGUI_PID__"
 
             try:
-                stdin.write(f"{command} & echo $! {sentinel}\n")
+                redirect = shell_background_redirect()
+                stdin.write(f"{command} {redirect} & echo $! {sentinel}\n")
                 stdin.flush()
             except (BrokenPipeError, OSError):
                 if proc.poll() is None:
@@ -153,7 +160,8 @@ class Shell:
                 assert stdin is not None
                 assert stdout is not None
                 if stdin:
-                    stdin.write(f"{command} & echo $! {sentinel}\n")
+                    redirect = shell_background_redirect()
+                    stdin.write(f"{command} {redirect} & echo $! {sentinel}\n")
                     stdin.flush()
 
             while True:
@@ -169,14 +177,14 @@ class Shell:
     @classmethod
     def run_background_args(cls, command, as_root: bool = False, shell: bool = False) -> int:
         if Runtime.is_windows:
+            output = subprocess_output_kwargs()
             proc = subprocess.Popen(
                 [str(arg) for arg in command] if not shell else str(command[0]),
                 stdin=subprocess.DEVNULL,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
                 text=True,
                 shell=shell,
-                **ygg_platform.background_popen_kwargs(),
+                **output,
+                **ygg_platform.background_popen_kwargs(debug_enabled()),
             )
             cls._direct_procs[proc.pid] = proc
             return proc.pid
@@ -185,14 +193,14 @@ class Shell:
     @classmethod
     def run(cls, command: str, as_root: bool = False) -> None:
         if Runtime.is_windows:
+            output = subprocess_output_kwargs()
             subprocess.Popen(
                 command,
                 stdin=subprocess.DEVNULL,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
                 text=True,
                 shell=True,
-                **ygg_platform.popen_kwargs(),
+                **output,
+                **ygg_platform.popen_kwargs(debug_enabled()),
             )
             return
 
