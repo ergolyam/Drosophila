@@ -57,7 +57,11 @@ jobs:
           arch-type: ${{ matrix.arch }}
 
   build-windows:
-    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [ x86_64, aarch64 ]
+    runs-on: ${{ matrix.arch == 'aarch64' && 'windows-11-arm' || 'windows-latest' }}
 
     steps:
       - name: Checkout code
@@ -68,3 +72,5 @@ jobs:
 
       - name: Build windows
         uses: ./.github/actions/build-windows
+        with:
+          arch-type: ${{ matrix.arch }}

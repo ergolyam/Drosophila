@@ -1,6 +1,11 @@
 name: Build windows
 description: Checkout and build the windows executable, then publish it to the artifacts.
 
+inputs:
+  arch-type:
+    description: Architecture type for the build
+    required: true
+
 runs:
   using: composite
   steps:
@@ -39,7 +44,7 @@ runs:
       uses: ./.github/actions/build-ygg
       with:
         goos: windows
-        goarch: amd64
+        goarch: ${{ inputs.arch-type == 'aarch64' && 'arm64' || 'amd64' }}
 
     - name: Download Wintun
       shell: bash
@@ -70,7 +75,7 @@ runs:
     - name: Package SFX
       shell: bash
       env:
-        BUNDLE_PREFIX: Drosophila-x86_64
+        BUNDLE_PREFIX: Drosophila-${{ inputs.arch-type }}
       run: |
         rm -f "$ARCHIVE" "$OUTPUT"
         "/c/Program Files/7-Zip/7z.exe" a -mx=9 "${BUNDLE_PREFIX}.7z" source/dist/Drosophila
@@ -79,6 +84,6 @@ runs:
     - name: Upload Windows artifact
       uses: actions/upload-artifact@v7
       with:
-        name: Drosophila-windows-x86_64
-        path: Drosophila-x86_64.exe
+        name: Drosophila-windows-${{ inputs.arch-type }}
+        path: Drosophila-${{ inputs.arch-type }}.exe
         if-no-files-found: error
