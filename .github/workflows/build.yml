@@ -26,6 +26,7 @@ jobs:
         uses: actions/checkout@v6
         with:
           sparse-checkout: .github/actions
+          fetch-depth: 1
 
       - name: Build flatpak
         uses: ./.github/actions/build-flatpak
@@ -48,6 +49,7 @@ jobs:
         uses: actions/checkout@v6
         with:
           sparse-checkout: .github/actions
+          fetch-depth: 1
 
       - name: Build appimage
         uses: ./.github/actions/build-appimage
@@ -62,6 +64,7 @@ jobs:
         uses: actions/checkout@v6
         with:
           sparse-checkout: .github/actions
+          fetch-depth: 1
 
       - name: Build windows
         uses: ./.github/actions/build-windows
