@@ -20,24 +20,26 @@ runs:
 
     - name: Setup MSYS2
       uses: msys2/setup-msys2@v2
+      env:
+        MSYS2_PREFIX: ${{ inputs.arch-type == 'aarch64' && 'clang-aarch64' || 'x86_64' }}
       with:
-        msystem: MINGW64
+        msystem: ${{ inputs.arch-type == 'aarch64' && 'CLANGARM64' || 'MINGW64' }}
         update: true
         install: >-
           git
-          mingw-w64-${{ inputs.arch-type }}-adwaita-icon-theme
-          mingw-w64-${{ inputs.arch-type }}-gdk-pixbuf2
-          mingw-w64-${{ inputs.arch-type }}-gobject-introspection
-          mingw-w64-${{ inputs.arch-type }}-gtk4
-          mingw-w64-${{ inputs.arch-type }}-hicolor-icon-theme
-          mingw-w64-${{ inputs.arch-type }}-libadwaita
-          mingw-w64-${{ inputs.arch-type }}-librsvg
-          mingw-w64-${{ inputs.arch-type }}-pyinstaller
-          mingw-w64-${{ inputs.arch-type }}-pyinstaller-hooks-contrib
-          mingw-w64-${{ inputs.arch-type }}-python
-          mingw-w64-${{ inputs.arch-type }}-python-gobject
-          mingw-w64-${{ inputs.arch-type }}-python-pip
-          mingw-w64-${{ inputs.arch-type }}-python-setuptools-scm
+          mingw-w64-${{ env.MSYS2_PREFIX }}-adwaita-icon-theme
+          mingw-w64-${{ env.MSYS2_PREFIX }}-gdk-pixbuf2
+          mingw-w64-${{ env.MSYS2_PREFIX }}-gobject-introspection
+          mingw-w64-${{ env.MSYS2_PREFIX }}-gtk4
+          mingw-w64-${{ env.MSYS2_PREFIX }}-hicolor-icon-theme
+          mingw-w64-${{ env.MSYS2_PREFIX }}-libadwaita
+          mingw-w64-${{ env.MSYS2_PREFIX }}-librsvg
+          mingw-w64-${{ env.MSYS2_PREFIX }}-pyinstaller
+          mingw-w64-${{ env.MSYS2_PREFIX }}-pyinstaller-hooks-contrib
+          mingw-w64-${{ env.MSYS2_PREFIX }}-python
+          mingw-w64-${{ env.MSYS2_PREFIX }}-python-gobject
+          mingw-w64-${{ env.MSYS2_PREFIX }}-python-pip
+          mingw-w64-${{ env.MSYS2_PREFIX }}-python-setuptools-scm
 
     - name: Install 7-Zip
       shell: powershell
