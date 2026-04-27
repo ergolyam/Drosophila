@@ -19,6 +19,7 @@ runs:
     - name: Checkout code
       uses: actions/checkout@v6
       with:
+        path: source
         fetch-depth: 0
 
     - name: Import GPG-key
@@ -38,7 +39,7 @@ runs:
         FLATPAK_ID: io.github.ergolyam.Drosophila
         BUNDLE_PREFIX: Drosophila-flatpak
       run: |
-        echo "manifest_path=flatpak/${FLATPAK_ID}.yml" >> "${GITHUB_OUTPUT}"
+        echo "manifest_path=source/flatpak/${FLATPAK_ID}.yml" >> "${GITHUB_OUTPUT}"
 
         case "${BUILD_TYPE}" in
           bundle)

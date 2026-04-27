@@ -10,8 +10,8 @@ runs:
   using: composite
   steps:
     - name: Install dependencies
-      run: dnf install -y git python3 python3-pip python3-devel gcc cairo-devel cairo-gobject-devel file
       shell: bash
+      run: dnf install -y git python3 python3-pip python3-devel gcc cairo-devel cairo-gobject-devel file
 
     - name: Checkout code
       uses: actions/checkout@v6
@@ -26,14 +26,16 @@ runs:
         goarch: ${{ inputs.arch-type == 'aarch64' && 'arm64' || 'amd64' }}
 
     - name: Install python-appimage
-      run: python3 -m pip install --upgrade python-appimage
       shell: bash
+      run: python3 -m pip install --upgrade python-appimage
 
     - name: Create AppimageDir
-      run: mkdir -p appimage
       shell: bash
+      run: mkdir -p appimage
 
     - name: Prepare AppimageDir
+      shell: bash
+      working-directory: appimage
       run: |
         mkdir -p usr/bin
         mkdir -p usr/share/metainfo
@@ -55,14 +57,12 @@ runs:
         Drosophila@file:///$GITHUB_WORKSPACE/source
         pygobject>=3.52.2
         EOF
-      shell: bash
-      working-directory: appimage
 
     - name: Build AppImage
+      shell: bash
       env:
         PIP_NO_CACHE_DIR: 1
       run: python-appimage build app -p 3.12 appimage -x appimage/usr
-      shell: bash
 
     - name: Upload AppImage artifact
       uses: actions/upload-artifact@v7

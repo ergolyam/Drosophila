@@ -32,8 +32,8 @@ runs:
           mingw-w64-x86_64-python-setuptools-scm
 
     - name: Install 7-Zip
-      run: choco install 7zip -y --no-progress
       shell: powershell
+      run: choco install 7zip -y --no-progress
 
     - name: Build yggdrasil and yggstack
       uses: ./.github/actions/build-ygg
@@ -42,21 +42,23 @@ runs:
         goarch: amd64
 
     - name: Download Wintun
+      shell: bash
       run: |
         curl.exe -fL -o wintun.zip https://www.wintun.net/builds/wintun-0.14.1.zip
         echo "07c256185d6ee3652e09fa55c0b673e2624b565e02c4b9091c79ca7d2f24ef51  wintun.zip" | sha256sum -c -
         "/c/Program Files/7-Zip/7z.exe" x -y wintun.zip -owintun
         cp wintun/wintun/bin/amd64/wintun.dll source/
-      shell: bash
 
     - name: Prepare binaries
+      shell: bash
       run: |
         cp yggdrasil/yggdrasil.exe source/
         cp yggdrasil/yggdrasilctl.exe source/
         cp yggstack/yggstack.exe source/
-      shell: bash
 
     - name: Build Drosophila
+      working-directory: source
+      shell: msys2 {0}
       run: |
         /mingw64/bin/python -m PyInstaller \
           --clean \
@@ -64,10 +66,9 @@ runs:
           --distpath dist \
           --workpath build \
           drosophila-windows.spec
-      working-directory: source
-      shell: msys2 {0}
 
     - name: Package SFX
+      shell: bash
       env:
         ARCHIVE: Drosophila-windows-x86_64.7z
         OUTPUT: Drosophila-windows-x86_64.exe
@@ -75,7 +76,6 @@ runs:
         rm -f "$ARCHIVE" "$OUTPUT"
         "/c/Program Files/7-Zip/7z.exe" a -mx=9 "$ARCHIVE" source/dist/Drosophila
         cat "/c/Program Files/7-Zip/7z.sfx" "$ARCHIVE" > "$OUTPUT"
-      shell: bash
 
     - name: Upload Windows artifact
       uses: actions/upload-artifact@v7
