@@ -37,17 +37,16 @@ runs:
         ARCH_TYPE: ${{ inputs.arch-type }}
         GPG_FINGERPRINT: ${{ steps.gpg-key.outputs.fingerprint }}
         FLATPAK_ID: io.github.ergolyam.Drosophila
-        BUNDLE_PREFIX: Drosophila-flatpak
       run: |
         echo "manifest_path=source/flatpak/${FLATPAK_ID}.yml" >> "${GITHUB_OUTPUT}"
 
         case "${BUILD_TYPE}" in
           bundle)
             echo "build_bundle=true" >> "${GITHUB_OUTPUT}"
-            echo "bundle=${BUNDLE_PREFIX}-${ARCH_TYPE}.flatpak" >> "${GITHUB_OUTPUT}"
+            echo "bundle=Drosophila-${ARCH_TYPE}.flatpak" >> "${GITHUB_OUTPUT}"
             echo "gpg_sign=" >> "${GITHUB_OUTPUT}"
-            echo "artifact_name=${BUNDLE_PREFIX}-${ARCH_TYPE}" >> "${GITHUB_OUTPUT}"
-            echo "artifact_path=${BUNDLE_PREFIX}-${ARCH_TYPE}.flatpak" >> "${GITHUB_OUTPUT}"
+            echo "artifact_name=Drosophila-flatpak-${ARCH_TYPE}" >> "${GITHUB_OUTPUT}"
+            echo "artifact_path=Drosophila-${ARCH_TYPE}.flatpak" >> "${GITHUB_OUTPUT}"
             ;;
 
           repo)

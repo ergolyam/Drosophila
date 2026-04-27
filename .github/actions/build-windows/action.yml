@@ -70,16 +70,15 @@ runs:
     - name: Package SFX
       shell: bash
       env:
-        ARCHIVE: Drosophila-windows-x86_64.7z
-        OUTPUT: Drosophila-windows-x86_64.exe
+        BUNDLE_PREFIX: Drosophila-x86_64
       run: |
         rm -f "$ARCHIVE" "$OUTPUT"
-        "/c/Program Files/7-Zip/7z.exe" a -mx=9 "$ARCHIVE" source/dist/Drosophila
-        cat "/c/Program Files/7-Zip/7z.sfx" "$ARCHIVE" > "$OUTPUT"
+        "/c/Program Files/7-Zip/7z.exe" a -mx=9 "${BUNDLE_PREFIX}.7z" source/dist/Drosophila
+        cat "/c/Program Files/7-Zip/7z.sfx" "${ARCHIVE}.7z" > "${BUNDLE_PREFIX}.exe"
 
     - name: Upload Windows artifact
       uses: actions/upload-artifact@v7
       with:
         name: Drosophila-windows-x86_64
-        path: Drosophila-windows-x86_64.exe
+        path: Drosophila-x86_64.exe
         if-no-files-found: error
