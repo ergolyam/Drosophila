@@ -8,6 +8,9 @@ on:
 permissions:
   contents: write
 
+env:
+  PROJECT_NAME: ${{ github.event.repository.name }}
+
 jobs:
   build:
     uses: ./.github/workflows/build.yml
@@ -78,7 +81,7 @@ jobs:
 
       - name: Write .flatpakrepo file
         env:
-          PAGES_REPO_URL: ${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}
+          PAGES_REPO_URL: ${{ github.repository_owner }}.github.io/${{ env.PROJECT_NAME }}
         run: |
           cat > ./root/${{ github.repository_owner }}.flatpakrepo << EOF
           [Flatpak Repo]
@@ -102,17 +105,17 @@ jobs:
       - name: Download release assets
         uses: actions/download-artifact@v8
         with:
-          pattern: Drosophila-*
+          pattern: ${{ env.PROJECT_NAME }}-*
           path: builds
           merge-multiple: true
 
       - name: Rename release assets
-        run: |
-          for f in Drosophila-*.AppImage Drosophila-*.exe; do
-            [ -e "$f" ] || continue
-            mv "$f" "Drosophila-${{ github.ref_name }}-${f#Drosophila-}"
-          done
         working-directory: builds
+        run: |
+          for f in ${{ env.PROJECT_NAME }}-*.AppImage ${{ env.PROJECT_NAME }}-*.exe; do
+            [ -e "$f" ] || continue
+            mv "$f" "${{ env.PROJECT_NAME }}-${{ github.ref_name }}-${f#${{ env.PROJECT_NAME }}-}"
+          done
 
       - name: Create release
         uses: softprops/action-gh-release@v3
@@ -120,7 +123,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tag_name: ${{ github.ref_name }}
-          name: Drosophila ${{ github.ref_name }}
+          name: ${{ env.PROJECT_NAME }} ${{ github.ref_name }}
           generate_release_notes: true
           prerelease: false
-          files: builds/Drosophila-*
+          files: builds/${{ env.PROJECT_NAME }}-*

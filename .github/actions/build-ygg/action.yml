@@ -26,17 +26,39 @@ inputs:
 runs:
   using: composite
   steps:
-    - name: Set up Go
-      uses: actions/setup-go@v6
-      with:
-        go-version: stable
-
     - name: Checkout yggdrasil
       uses: actions/checkout@v6
       with:
         repository: yggdrasil-network/yggdrasil-go
         path: yggdrasil
         ref: ${{ inputs.yggdrasil-ref }}
+
+    - name: Checkout yggstack
+      uses: actions/checkout@v6
+      with:
+        repository: yggdrasil-network/yggstack
+        path: yggstack
+        ref: ${{ inputs.yggstack-ref }}
+
+    - name: Write Go cache target key
+      shell: bash
+      run: |
+        cat > go-target.txt <<EOF
+        CGO_ENABLED=${{ inputs.cgo-enabled }}
+        GOOS=${{ inputs.goos }}
+        GOARCH=${{ inputs.goarch }}
+        yggdrasil-ref=${{ inputs.yggdrasil-ref }}
+        yggstack-ref=${{ inputs.yggstack-ref }}
+        EOF
+
+    - name: Set up Go
+      uses: actions/setup-go@v6
+      with:
+        go-version: stable
+        cache-dependency-path: |
+          yggdrasil/go.sum
+          yggstack/go.sum
+          go-target.txt
 
     - name: Build yggdrasil
       env:
@@ -46,13 +68,6 @@ runs:
       run: ./build
       shell: bash
       working-directory: yggdrasil
-
-    - name: Checkout yggstack
-      uses: actions/checkout@v6
-      with:
-        repository: yggdrasil-network/yggstack
-        path: yggstack
-        ref: ${{ inputs.yggstack-ref }}
 
     - name: Build yggstack
       env:
