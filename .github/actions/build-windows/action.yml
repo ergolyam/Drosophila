@@ -78,7 +78,7 @@ runs:
         BUNDLE_PREFIX: Drosophila-${{ inputs.arch-type }}
       run: |
         rm -f "$ARCHIVE" "$OUTPUT"
-        "/c/Program Files/7-Zip/7z.exe" a -mx=9 "${BUNDLE_PREFIX}.7z" source/dist/Drosophila
+        "/c/Program Files/7-Zip/7z.exe" a -mx=9 "${BUNDLE_PREFIX}.7z" ./source/dist/Drosophila
         cat "/c/Program Files/7-Zip/7z.sfx" "${BUNDLE_PREFIX}.7z" > "${BUNDLE_PREFIX}.exe"
 
     - name: Upload Windows artifact
