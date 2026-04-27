@@ -72,7 +72,7 @@ runs:
       working-directory: source
       shell: msys2 {0}
       run: |
-        /mingw64/bin/python -m PyInstaller \
+        python -m PyInstaller \
           --clean \
           --noconfirm \
           --distpath dist \
