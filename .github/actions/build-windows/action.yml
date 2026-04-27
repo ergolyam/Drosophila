@@ -77,7 +77,7 @@ runs:
           --noconfirm \
           --distpath dist \
           --workpath build \
-          drosophila-windows.spec
+          pyinstaller-windows.spec
 
     - name: Package SFX
       shell: bash
