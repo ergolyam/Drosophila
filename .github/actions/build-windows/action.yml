@@ -20,24 +20,26 @@ runs:
 
     - name: Setup MSYS2
       uses: msys2/setup-msys2@v2
+      env:
+        MSYS2_PREFIX: ${{ inputs.arch-type == 'aarch64' && 'clang-aarch64' || 'x86_64' }}
       with:
-        msystem: MINGW64
+        msystem: ${{ inputs.arch-type == 'aarch64' && 'CLANGARM64' || 'MINGW64' }}
         update: true
         install: >-
           git
-          mingw-w64-x86_64-adwaita-icon-theme
-          mingw-w64-x86_64-gdk-pixbuf2
-          mingw-w64-x86_64-gobject-introspection
-          mingw-w64-x86_64-gtk4
-          mingw-w64-x86_64-hicolor-icon-theme
-          mingw-w64-x86_64-libadwaita
-          mingw-w64-x86_64-librsvg
-          mingw-w64-x86_64-pyinstaller
-          mingw-w64-x86_64-pyinstaller-hooks-contrib
-          mingw-w64-x86_64-python
-          mingw-w64-x86_64-python-gobject
-          mingw-w64-x86_64-python-pip
-          mingw-w64-x86_64-python-setuptools-scm
+          mingw-w64-${{ env.MSYS2_PREFIX }}-adwaita-icon-theme
+          mingw-w64-${{ env.MSYS2_PREFIX }}-gdk-pixbuf2
+          mingw-w64-${{ env.MSYS2_PREFIX }}-gobject-introspection
+          mingw-w64-${{ env.MSYS2_PREFIX }}-gtk4
+          mingw-w64-${{ env.MSYS2_PREFIX }}-hicolor-icon-theme
+          mingw-w64-${{ env.MSYS2_PREFIX }}-libadwaita
+          mingw-w64-${{ env.MSYS2_PREFIX }}-librsvg
+          mingw-w64-${{ env.MSYS2_PREFIX }}-pyinstaller
+          mingw-w64-${{ env.MSYS2_PREFIX }}-pyinstaller-hooks-contrib
+          mingw-w64-${{ env.MSYS2_PREFIX }}-python
+          mingw-w64-${{ env.MSYS2_PREFIX }}-python-gobject
+          mingw-w64-${{ env.MSYS2_PREFIX }}-python-pip
+          mingw-w64-${{ env.MSYS2_PREFIX }}-python-setuptools-scm
 
     - name: Install 7-Zip
       shell: powershell
@@ -51,11 +53,13 @@ runs:
 
     - name: Download Wintun
       shell: bash
+      env:
+        ARCH: ${{ inputs.arch-type == 'aarch64' && 'arm64' || 'amd64' }}
       run: |
         curl.exe -fL -o wintun.zip https://www.wintun.net/builds/wintun-0.14.1.zip
         echo "07c256185d6ee3652e09fa55c0b673e2624b565e02c4b9091c79ca7d2f24ef51  wintun.zip" | sha256sum -c -
         "/c/Program Files/7-Zip/7z.exe" x -y wintun.zip -owintun
-        cp wintun/wintun/bin/amd64/wintun.dll source/
+        cp wintun/wintun/bin/${ARCH}/wintun.dll source/
 
     - name: Prepare binaries
       shell: bash
@@ -68,19 +72,18 @@ runs:
       working-directory: source
       shell: msys2 {0}
       run: |
-        /mingw64/bin/python -m PyInstaller \
+        python -m PyInstaller \
           --clean \
           --noconfirm \
           --distpath dist \
           --workpath build \
-          drosophila-windows.spec
+          pyinstaller-windows.spec
 
     - name: Package SFX
       shell: bash
       env:
         BUNDLE_PREFIX: ${{ inputs.project-name }}-${{ inputs.arch-type }}
       run: |
-        rm -f "$ARCHIVE" "$OUTPUT"
         "/c/Program Files/7-Zip/7z.exe" a -mx=9 "${BUNDLE_PREFIX}.7z" ./source/dist/${{ inputs.project-name }}
         cat "/c/Program Files/7-Zip/7z.sfx" "${BUNDLE_PREFIX}.7z" > "${BUNDLE_PREFIX}.exe"
 
