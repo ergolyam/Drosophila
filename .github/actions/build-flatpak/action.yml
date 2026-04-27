@@ -2,6 +2,9 @@ name: Build flatpak
 description: Checkout and compile the Flatpak bundle or repo, then publish it to the artefacts.
 
 inputs:
+  project-name:
+    description: Name of the final product after the build
+    required: true
   build-type:
     description: Build type, bundle or repo
     required: true
@@ -36,17 +39,17 @@ runs:
         BUILD_TYPE: ${{ inputs.build-type }}
         ARCH_TYPE: ${{ inputs.arch-type }}
         GPG_FINGERPRINT: ${{ steps.gpg-key.outputs.fingerprint }}
-        FLATPAK_ID: io.github.ergolyam.Drosophila
+        FLATPAK_ID: io.github.ergolyam.${{ inputs.project-name }}
       run: |
         echo "manifest_path=source/flatpak/${FLATPAK_ID}.yml" >> "${GITHUB_OUTPUT}"
 
         case "${BUILD_TYPE}" in
           bundle)
             echo "build_bundle=true" >> "${GITHUB_OUTPUT}"
-            echo "bundle=Drosophila-${ARCH_TYPE}.flatpak" >> "${GITHUB_OUTPUT}"
+            echo "bundle=${{ inputs.project-name }}-${ARCH_TYPE}.flatpak" >> "${GITHUB_OUTPUT}"
             echo "gpg_sign=" >> "${GITHUB_OUTPUT}"
-            echo "artifact_name=Drosophila-flatpak-${ARCH_TYPE}" >> "${GITHUB_OUTPUT}"
-            echo "artifact_path=Drosophila-${ARCH_TYPE}.flatpak" >> "${GITHUB_OUTPUT}"
+            echo "artifact_name=${{ inputs.project-name }}-flatpak-${ARCH_TYPE}" >> "${GITHUB_OUTPUT}"
+            echo "artifact_path=${{ inputs.project-name }}-${ARCH_TYPE}.flatpak" >> "${GITHUB_OUTPUT}"
             ;;
 
           repo)

@@ -2,6 +2,9 @@ name: Build windows
 description: Checkout and build the windows executable, then publish it to the artifacts.
 
 inputs:
+  project-name:
+    description: Name of the final product after the build
+    required: true
   arch-type:
     description: Architecture type for the build
     required: true
@@ -61,7 +64,7 @@ runs:
         cp yggdrasil/yggdrasilctl.exe source/
         cp yggstack/yggstack.exe source/
 
-    - name: Build Drosophila
+    - name: Build ${{ inputs.project-name }}
       working-directory: source
       shell: msys2 {0}
       run: |
@@ -75,15 +78,15 @@ runs:
     - name: Package SFX
       shell: bash
       env:
-        BUNDLE_PREFIX: Drosophila-${{ inputs.arch-type }}
+        BUNDLE_PREFIX: ${{ inputs.project-name }}-${{ inputs.arch-type }}
       run: |
         rm -f "$ARCHIVE" "$OUTPUT"
-        "/c/Program Files/7-Zip/7z.exe" a -mx=9 "${BUNDLE_PREFIX}.7z" ./source/dist/Drosophila
+        "/c/Program Files/7-Zip/7z.exe" a -mx=9 "${BUNDLE_PREFIX}.7z" ./source/dist/${{ inputs.project-name }}
         cat "/c/Program Files/7-Zip/7z.sfx" "${BUNDLE_PREFIX}.7z" > "${BUNDLE_PREFIX}.exe"
 
     - name: Upload Windows artifact
       uses: actions/upload-artifact@v7
       with:
-        name: Drosophila-windows-${{ inputs.arch-type }}
-        path: Drosophila-${{ inputs.arch-type }}.exe
+        name: ${{ inputs.project-name }}-windows-${{ inputs.arch-type }}
+        path: ${{ inputs.project-name }}-${{ inputs.arch-type }}.exe
         if-no-files-found: error

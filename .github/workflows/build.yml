@@ -31,6 +31,7 @@ jobs:
       - name: Build flatpak
         uses: ./.github/actions/build-flatpak
         with:
+          project-name: ${{ github.event.repository.name }}
           build-type: ${{ inputs.flatpak }}
           arch-type: ${{ matrix.arch }}
           gpg-private-key: ${{ secrets.GPG_PRIVATE_KEY }}
@@ -54,6 +55,7 @@ jobs:
       - name: Build appimage
         uses: ./.github/actions/build-appimage
         with:
+          project-name: ${{ github.event.repository.name }}
           arch-type: ${{ matrix.arch }}
 
   build-windows:
@@ -73,4 +75,5 @@ jobs:
       - name: Build windows
         uses: ./.github/actions/build-windows
         with:
+          project-name: ${{ github.event.repository.name }}
           arch-type: ${{ matrix.arch }}

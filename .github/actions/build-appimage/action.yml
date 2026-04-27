@@ -2,6 +2,9 @@ name: Build appimage
 description: Checkout and build the AppImage, then publish it to the artifacts.
 
 inputs:
+  project-name:
+    description: Name of the final product after the build
+    required: true
   arch-type:
     description: Architecture type for the build
     required: true
@@ -54,7 +57,7 @@ runs:
         chmod +x entrypoint.sh
 
         cat > requirements.txt <<EOF
-        Drosophila@file:///$GITHUB_WORKSPACE/source
+        ${{ inputs.project-name }}@file:///$GITHUB_WORKSPACE/source
         pygobject>=3.52.2
         EOF
 
@@ -67,6 +70,6 @@ runs:
     - name: Upload AppImage artifact
       uses: actions/upload-artifact@v7
       with:
-        name: Drosophila-appimage-${{ inputs.arch-type }}
-        path: Drosophila-${{ inputs.arch-type }}.AppImage
+        name: ${{ inputs.project-name }}-appimage-${{ inputs.arch-type }}
+        path: ${{ inputs.project-name }}-${{ inputs.arch-type }}.AppImage
         if-no-files-found: error
