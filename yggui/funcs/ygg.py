@@ -1,7 +1,7 @@
 import time
 from threading import Thread
 
-from gi.repository import GLib, Gtk, Adw  # type: ignore
+from gi.repository import GLib, Adw  # type: ignore
 
 from yggui.funcs.peers import (
     update_peer_status,

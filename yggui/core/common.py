@@ -4,7 +4,6 @@ from importlib.metadata import PackageNotFoundError, version as package_version
 from pathlib import Path
 from importlib.resources import files
 from yggui.core import platform as ygg_platform
-from yggui.core.logs import get_logger
 
 def which_in_flatpak(cmd: str) -> str | None:
     result = subprocess.run(

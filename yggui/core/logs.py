@@ -3,13 +3,15 @@ import os
 import subprocess
 import sys
 
+from yggui.core import platform as ygg_platform
+
 
 _DEBUG = False
 _ROOT_LOGGER_NAME = "yggui"
 
 
 def _ensure_windows_console() -> None:
-    if os.name != "nt":
+    if not ygg_platform.is_windows():
         return
 
     try:
@@ -19,6 +21,9 @@ def _ensure_windows_console() -> None:
         return
 
     kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel32.AttachConsole.argtypes = [ctypes.c_ulong]
+    kernel32.AttachConsole.restype = ctypes.c_bool
+    kernel32.AllocConsole.restype = ctypes.c_bool
     kernel32.GetConsoleWindow.restype = ctypes.c_void_p
     kernel32.SetStdHandle.argtypes = [ctypes.c_ulong, ctypes.c_void_p]
     kernel32.SetStdHandle.restype = ctypes.c_bool
