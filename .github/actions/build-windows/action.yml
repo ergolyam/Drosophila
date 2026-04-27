@@ -25,19 +25,19 @@ runs:
         update: true
         install: >-
           git
-          mingw-w64-x86_64-adwaita-icon-theme
-          mingw-w64-x86_64-gdk-pixbuf2
-          mingw-w64-x86_64-gobject-introspection
-          mingw-w64-x86_64-gtk4
-          mingw-w64-x86_64-hicolor-icon-theme
-          mingw-w64-x86_64-libadwaita
-          mingw-w64-x86_64-librsvg
-          mingw-w64-x86_64-pyinstaller
-          mingw-w64-x86_64-pyinstaller-hooks-contrib
-          mingw-w64-x86_64-python
-          mingw-w64-x86_64-python-gobject
-          mingw-w64-x86_64-python-pip
-          mingw-w64-x86_64-python-setuptools-scm
+          mingw-w64-${{ inputs.arch-type }}-adwaita-icon-theme
+          mingw-w64-${{ inputs.arch-type }}-gdk-pixbuf2
+          mingw-w64-${{ inputs.arch-type }}-gobject-introspection
+          mingw-w64-${{ inputs.arch-type }}-gtk4
+          mingw-w64-${{ inputs.arch-type }}-hicolor-icon-theme
+          mingw-w64-${{ inputs.arch-type }}-libadwaita
+          mingw-w64-${{ inputs.arch-type }}-librsvg
+          mingw-w64-${{ inputs.arch-type }}-pyinstaller
+          mingw-w64-${{ inputs.arch-type }}-pyinstaller-hooks-contrib
+          mingw-w64-${{ inputs.arch-type }}-python
+          mingw-w64-${{ inputs.arch-type }}-python-gobject
+          mingw-w64-${{ inputs.arch-type }}-python-pip
+          mingw-w64-${{ inputs.arch-type }}-python-setuptools-scm
 
     - name: Install 7-Zip
       shell: powershell
@@ -51,11 +51,13 @@ runs:
 
     - name: Download Wintun
       shell: bash
+      env:
+        ARCH: ${{ inputs.arch-type == 'aarch64' && 'arm64' || 'amd64' }}
       run: |
         curl.exe -fL -o wintun.zip https://www.wintun.net/builds/wintun-0.14.1.zip
         echo "07c256185d6ee3652e09fa55c0b673e2624b565e02c4b9091c79ca7d2f24ef51  wintun.zip" | sha256sum -c -
         "/c/Program Files/7-Zip/7z.exe" x -y wintun.zip -owintun
-        cp wintun/wintun/bin/amd64/wintun.dll source/
+        cp wintun/wintun/bin/${ARCH}/wintun.dll source/
 
     - name: Prepare binaries
       shell: bash
