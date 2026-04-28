@@ -1,12 +1,12 @@
+import os
 import subprocess
 import time
-from threading import Lock
+from threading import Lock, Thread
 from yggui.core.common import Runtime, Binary
 from yggui.core import platform as ygg_platform
 from yggui.core.logs import (
     debug_enabled,
     get_logger,
-    shell_background_redirect,
     subprocess_output_kwargs,
 )
 
@@ -17,6 +17,36 @@ class Shell:
     _procs: dict[bool, subprocess.Popen[str] | None] = {False: None, True: None}
     _locks: dict[bool, Lock] = {False: Lock(), True: Lock()}
     _direct_procs: dict[int, subprocess.Popen] = {}
+
+    @classmethod
+    def _log_output_pipe(cls, path) -> None:
+        try:
+            with path.open("r", encoding="utf-8", errors="replace") as stream:
+                for line in stream:
+                    log.info(line.rstrip("\n"))
+        except OSError as exc:
+            log.info("Failed to read process output: %s", exc)
+        finally:
+            try:
+                path.unlink(missing_ok=True)
+            except OSError:
+                pass
+
+    @classmethod
+    def _background_command(cls, command: str) -> str:
+        if not debug_enabled():
+            return f"( exec > /dev/null 2>&1; exec {command} )"
+
+        try:
+            pipe_path = Runtime.bin_dir / f"yggui-output-{time.time_ns()}.pipe"
+            os.mkfifo(pipe_path, 0o600)
+        except OSError as exc:
+            log.info("Failed to create debug output pipe: %s", exc)
+            return f"( exec > /dev/null 2>&1; exec {command} )"
+
+        Thread(target=cls._log_output_pipe, args=(pipe_path,), daemon=True).start()
+        output_path = ygg_platform.command_line([pipe_path])
+        return f"( exec > {output_path} 2>&1; exec {command} )"
 
     @classmethod
     def _spawn_shell(cls, as_root: bool) -> subprocess.Popen[str]:
@@ -65,13 +95,24 @@ class Shell:
 
         cmd = f"kill -0 {pid} 2>/dev/null && echo __ALIVE__"
         try:
-            output = cls.run_capture(cmd, timeout=2.0, as_root=as_root)
+            output = cls.run_capture(
+                cmd,
+                timeout=2.0,
+                as_root=as_root,
+                log_output=False,
+            )
             return "__ALIVE__" in output
         except Exception:
             return False
 
     @classmethod
-    def run_capture(cls, command: str, timeout: float = 15.0, as_root: bool = False) -> str:
+    def run_capture(
+        cls,
+        command: str,
+        timeout: float = 15.0,
+        as_root: bool = False,
+        log_output: bool = True,
+    ) -> str:
         if Runtime.is_windows:
             result = subprocess.run(
                 command,
@@ -83,8 +124,9 @@ class Shell:
                 **ygg_platform.popen_kwargs(debug_enabled()),
             )
             output = (result.stdout or "") + (result.stderr or "")
-            for line in output.splitlines():
-                log.info(line)
+            if log_output:
+                for line in output.splitlines():
+                    log.info(line)
             return output
 
         lock = cls._locks[as_root]
@@ -123,7 +165,8 @@ class Shell:
                     break
                 if line.strip() == marker:
                     break
-                log.info(line.rstrip("\n"))
+                if log_output:
+                    log.info(line.rstrip("\n"))
                 output_lines.append(line)
                 if time.time() - start > timeout:
                     break
@@ -147,8 +190,8 @@ class Shell:
             sentinel = "__YGGUI_PID__"
 
             try:
-                redirect = shell_background_redirect()
-                stdin.write(f"{command} {redirect} & echo $! {sentinel}\n")
+                background_command = cls._background_command(command)
+                stdin.write(f"{background_command} & echo $! {sentinel}\n")
                 stdin.flush()
             except (BrokenPipeError, OSError):
                 if proc.poll() is None:
@@ -160,8 +203,8 @@ class Shell:
                 assert stdin is not None
                 assert stdout is not None
                 if stdin:
-                    redirect = shell_background_redirect()
-                    stdin.write(f"{command} {redirect} & echo $! {sentinel}\n")
+                    background_command = cls._background_command(command)
+                    stdin.write(f"{background_command} & echo $! {sentinel}\n")
                     stdin.flush()
 
             while True:

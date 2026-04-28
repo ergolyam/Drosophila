@@ -1,5 +1,4 @@
 import logging
-import os
 import subprocess
 import sys
 
@@ -89,25 +88,6 @@ def subprocess_output_kwargs() -> dict:
     if _DEBUG:
         return {"stdout": None, "stderr": None}
     return {"stdout": subprocess.DEVNULL, "stderr": subprocess.DEVNULL}
-
-
-def shell_background_redirect() -> str:
-    if not _DEBUG:
-        return "> /dev/null 2>&1"
-
-    stderr_fd = f"/proc/{os.getpid()}/fd/2"
-    if os.path.exists(stderr_fd):
-        return f"> {stderr_fd} 2>&1"
-
-    try:
-        tty_fd = os.open("/dev/tty", os.O_WRONLY)
-    except OSError:
-        tty_fd = None
-    if tty_fd is not None:
-        os.close(tty_fd)
-        return "> /dev/tty 2>&1"
-
-    return "> /dev/null 2>&1"
 
 
 configure_logging(False)
