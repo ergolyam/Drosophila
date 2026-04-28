@@ -65,6 +65,7 @@ class Shell:
             stderr=subprocess.STDOUT,
             text=True,
             bufsize=1,
+            start_new_session=as_root,
         )
 
     @classmethod
