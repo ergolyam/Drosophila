@@ -1,4 +1,8 @@
 from yggui.core.common import Runtime, Binary
+from yggui.core.logs import get_logger
+
+
+log = get_logger(__name__)
 
 
 def load_socks_config(app):
@@ -26,6 +30,9 @@ def load_socks_config(app):
 
 
 def socks_switch_toggled(app, _row, state: bool):
+    if app.socks_config.get("enabled") == state:
+        return
+    log.info("Yggstack SOCKS switch toggled: %s", "on" if state else "off")
     Runtime.config.set("yggstack-enable", state)
     app.socks_card.set_subtitle("Enabled" if state else "Disabled")
     app.socks_card.set_expanded(state)
@@ -34,23 +41,31 @@ def socks_switch_toggled(app, _row, state: bool):
 
 def listen_changed(app, _row, _pspec):
     value = app.socks_listen_row.get_text().strip()
+    if app.socks_config.get("listen") == value:
+        return
     if value:
+        log.info("Yggstack SOCKS listen address changed: %s", value)
         Runtime.config.set("yggstack-listen", value)
         app.socks_config["listen"] = value
 
 
 def ip_changed(app, _row, _pspec):
     value = app.socks_dns_ip_row.get_text().strip()
+    if app.socks_config.get("dns_ip") == value:
+        return
+    log.info("Yggstack DNS address changed: %s", value or "disabled")
     Runtime.config.set("yggstack-dns-ip", value)
     app.socks_config["dns_ip"] = value
 
 
 def port_changed(app, _row, _pspec):
     value = app.socks_dns_port_row.get_text().strip() or "53"
+    if app.socks_config.get("dns_port") == value:
+        return
+    log.info("Yggstack DNS port changed: %s", value)
     Runtime.config.set("yggstack-dns-port", value)
     app.socks_config["dns_port"] = value
 
 
 if __name__ == "__main__":
     raise RuntimeError("This module should be run only via main.py")
-

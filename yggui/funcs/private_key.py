@@ -1,8 +1,12 @@
 import subprocess, json
 
 from yggui.core.common import Runtime, Binary
+from yggui.core.logs import get_logger
 from yggui.core import platform as ygg_platform
 from gi.repository import Gtk  # type: ignore
+
+
+log = get_logger(__name__)
 
 
 def on_text_changed(app, _row, _pspec):
@@ -25,6 +29,7 @@ def on_focus_leave(app, _controller):
 def regenerate(app):
     try:
         cmd = [Binary.ygg_path, "-genconf", "-json"]
+        log.info("Regenerating private key")
         result = subprocess.run(
             cmd,
             capture_output=True,
@@ -34,13 +39,15 @@ def regenerate(app):
         )
         generated = json.loads(result.stdout)
         new_key = generated.get("PrivateKey", "").strip()
-    except Exception:
+    except Exception as exc:
+        log.info("Private key regeneration failed: %s", exc)
         return
 
     if not new_key:
         return
 
     Runtime.config.set("PrivateKey", new_key)
+    log.info("Private key regenerated")
 
     app.current_private_key = new_key
     app.private_key_row.set_text(new_key)
