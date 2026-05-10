@@ -1,5 +1,7 @@
-import os, sys
+import os
 from pathlib import Path
+
+from yggui.core import platform as ygg_platform
 
 
 def _prepend_env(name: str, path: Path) -> None:
@@ -13,10 +15,10 @@ def _prepend_env(name: str, path: Path) -> None:
 
 
 def configure_runtime() -> None:
-    if os.name != "nt" or not getattr(sys, "frozen", False):
+    if not ygg_platform.is_windows() or not ygg_platform.is_frozen():
         return
 
-    base = Path(sys.executable).resolve().parent
+    base = ygg_platform.app_dir()
     share_dir = base / "share"
 
     _prepend_env("PATH", base)

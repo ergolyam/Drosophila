@@ -7,7 +7,11 @@ from urllib.parse import urlparse, parse_qs
 from yggui.exec.get_info import get_peers_status
 
 from yggui.core.common import Runtime, Gui, Regexp, Common
+from yggui.core.logs import get_logger
 from yggui.funcs.peer_discovery import open_peer_discovery_dialog
+
+
+log = get_logger(__name__)
 
 
 def apply_status(app, status: dict[str, bool]) -> None:
@@ -242,6 +246,7 @@ def open_add_peer_dialog(app, prefill: dict | None = None):
 
         if peer not in app.peers:
             app.peers.append(peer)
+            log.info("Peer added: %s", peer)
             Runtime.config.set("Peers", app.peers)
             rebuild_peers_box(app)
             if app.ygg_pid is not None or app.socks_pid is not None:
@@ -276,6 +281,7 @@ def load_config(app):
 def remove_peer(app, peer):
     if peer in app.peers:
         app.peers.remove(peer)
+        log.info("Peer removed: %s", peer)
         Runtime.config.set("Peers", app.peers)
         rebuild_peers_box(app)
         if app.ygg_pid is not None or app.socks_pid is not None:
