@@ -2,12 +2,13 @@ import time
 from threading import Thread
 
 from gi.repository import Gtk, Adw, GLib # type: ignore
-from urllib.parse import urlparse, parse_qs
+from urllib.parse import urlparse
 
 from yggui.exec.get_info import get_peers_status
 
 from yggui.core.common import Runtime, Gui, Regexp, Common
 from yggui.core.logs import get_logger
+from yggui.funcs.peer_uri import build_peer_uri, peer_query_value, peer_subtitle_parts
 from yggui.funcs.peer_discovery import open_peer_discovery_dialog
 
 
@@ -107,11 +108,7 @@ def rebuild_peers_box(app):
         row.set_title(title)
         row.add_css_class("compact")
 
-        subtitle_parts = [proto.upper()]
-        if proto == "tls":
-            sni = parse_qs(parsed.query).get("sni", [None])[0]
-            if sni:
-                subtitle_parts.append(f"SNI: {sni}")
+        subtitle_parts = peer_subtitle_parts(proto, parsed.query)
         row.set_subtitle(" • ".join(subtitle_parts))
         row.set_activatable(False)
 
@@ -152,12 +149,14 @@ def _open_from_discovery(app, peer) -> None:
     domain = parsed.hostname or ""
     if parsed.port:
         domain = f"{domain}:{parsed.port}"
-    sni = parse_qs(parsed.query).get("sni", [None])[0]
+    sni = peer_query_value(parsed.query, "sni")
+    password = peer_query_value(parsed.query, "password")
 
     prefill = {
         "protocol": parsed.scheme,
         "domain": domain,
         "sni": sni,
+        "password": password,
     }
     open_add_peer_dialog(app, prefill=prefill)
 
@@ -169,6 +168,7 @@ def open_add_peer_dialog(app, prefill: dict | None = None):
     domain_row: Adw.EntryRow = builder.get_object("domain_row")
     proto_row: Adw.ComboRow = builder.get_object("proto_row")
     sni_row: Adw.EntryRow = builder.get_object("sni_row")
+    password_row: Adw.EntryRow = builder.get_object("password_row")
     sni_group = builder.get_object("sni_group")
     domain_error: Gtk.Label = builder.get_object("domain_error")
     sni_error:    Gtk.Label = builder.get_object("sni_error")
@@ -228,6 +228,9 @@ def open_add_peer_dialog(app, prefill: dict | None = None):
         sni = prefill.get("sni")
         if sni:
             sni_row.set_text(sni)
+        password = prefill.get("password")
+        if password:
+            password_row.set_text(password)
 
     _update_sni_row()
     _validate()
@@ -238,11 +241,9 @@ def open_add_peer_dialog(app, prefill: dict | None = None):
             return
 
         proto = Common.protocols[proto_row.get_selected()]
-        peer  = f"{proto}://{domain}"
-
         sni = sni_row.get_text().strip()
-        if proto == "tls" and sni:
-            peer += f"?sni={sni}"
+        password = password_row.get_text().strip()
+        peer = build_peer_uri(proto, domain, sni=sni, password=password)
 
         if peer not in app.peers:
             app.peers.append(peer)

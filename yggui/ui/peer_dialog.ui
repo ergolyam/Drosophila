@@ -78,6 +78,18 @@
           </object>
         </child>
 
+        <!-- Password -->
+        <child>
+          <object class="AdwPreferencesGroup" id="password_group">
+            <property name="margin-top">6</property>
+            <child>
+              <object class="AdwPasswordEntryRow" id="password_row">
+                <property name="title" translatable="yes">Password</property>
+              </object>
+            </child>
+          </object>
+        </child>
+
       </object>
     </property>
   </object>
