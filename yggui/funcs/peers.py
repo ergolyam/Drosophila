@@ -74,16 +74,6 @@ def build_proto_widget(proto: str) -> tuple[Gtk.Widget, str, Gtk.Image]:
 
     base_img = Gtk.Image.new_from_icon_name(base_name)
 
-    if proto in {"tls", "wss"}:
-        overlay = Gtk.Overlay()
-        overlay.set_child(base_img)
-        lock = Gtk.Image.new_from_icon_name("security-low-symbolic")
-        lock.set_pixel_size(30)
-        lock.set_margin_bottom(-4)
-        lock.set_margin_start(-14)
-        overlay.add_overlay(lock)
-        return overlay, base_name, base_img
-
     return base_img, base_name, base_img
 
 
