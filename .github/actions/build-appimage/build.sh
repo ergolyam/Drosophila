@@ -38,12 +38,13 @@ apk add --no-cache \
     shared-mime-info \
     wget
 
-git config --global --add safe.directory /source
-
 BUILD_ROOT=$(mktemp -d)
+SOURCE_ROOT="$BUILD_ROOT/source"
 INSTALL_ROOT="$BUILD_ROOT/install"
 APPDIR="$BUILD_ROOT/AppDir"
-mkdir -p "$INSTALL_ROOT" "$APPDIR/usr/bin" "$APPDIR/usr/share/metainfo" "$APPDIR/etc/ssl" "$APPDIR/etc/fonts"
+mkdir -p "$SOURCE_ROOT" "$INSTALL_ROOT" "$APPDIR/usr/bin" "$APPDIR/usr/share/metainfo" "$APPDIR/etc/ssl" "$APPDIR/etc/fonts"
+cp -a /source/. "$SOURCE_ROOT/"
+git config --global --add safe.directory "$SOURCE_ROOT"
 
 python3 -m pip install \
     --break-system-packages \
@@ -52,7 +53,7 @@ python3 -m pip install \
     --prefix /usr \
     --no-deps \
     --no-build-isolation \
-    /source
+    "$SOURCE_ROOT"
 
 apk del git py3-pip py3-setuptools py3-setuptools_scm py3-wheel
 
@@ -67,9 +68,9 @@ ln -s python3.12 "$APPDIR/usr/bin/python3"
 
 cp /yggdrasil/yggdrasil* "$APPDIR/usr/bin/"
 cp /yggstack/yggstack "$APPDIR/usr/bin/"
-cp /source/xdg/io.github.ergolyam.Drosophila.desktop "$APPDIR/"
-cp /source/xdg/io.github.ergolyam.Drosophila.svg "$APPDIR/"
-cp /source/xdg/io.github.ergolyam.Drosophila.metainfo.xml "$APPDIR/usr/share/metainfo/"
+cp "$SOURCE_ROOT/xdg/io.github.ergolyam.Drosophila.desktop" "$APPDIR/"
+cp "$SOURCE_ROOT/xdg/io.github.ergolyam.Drosophila.svg" "$APPDIR/"
+cp "$SOURCE_ROOT/xdg/io.github.ergolyam.Drosophila.metainfo.xml" "$APPDIR/usr/share/metainfo/"
 cp /action/AppRun "$APPDIR/AppRun"
 chmod +x "$APPDIR/AppRun"
 
