@@ -23,6 +23,14 @@ chmod +x Drosophila-*.AppImage
 ./Drosophila-*.AppImage
 ```
 
+The AppImage bundles its own musl, Python, GTK 4 and libadwaita runtime, so it
+does not use distribution-provided versions of those libraries. On systems or
+containers where FUSE is unavailable, use the AppImage extraction mode:
+
+```bash
+APPIMAGE_EXTRACT_AND_RUN=1 ./Drosophila-*.AppImage
+```
+
 ### Python package
 
 ```bash

@@ -41,8 +41,6 @@ jobs:
       matrix:
         arch: [ x86_64, aarch64 ]
     runs-on: ${{ matrix.arch == 'aarch64' && 'ubuntu-24.04-arm' || 'ubuntu-latest' }}
-    container:
-      image: docker.io/fedora:latest
 
     steps:
       - name: Checkout code

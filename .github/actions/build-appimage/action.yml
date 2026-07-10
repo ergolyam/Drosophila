@@ -12,10 +12,6 @@ inputs:
 runs:
   using: composite
   steps:
-    - name: Install dependencies
-      shell: bash
-      run: dnf install -y git python3 python3-pip python3-devel gcc cairo-devel cairo-gobject-devel file
-
     - name: Checkout code
       uses: actions/checkout@v6
       with:
@@ -28,48 +24,45 @@ runs:
         goos: linux
         goarch: ${{ inputs.arch-type == 'aarch64' && 'arm64' || 'amd64' }}
 
-    - name: Install python-appimage
-      shell: bash
-      run: python3 -m pip install --upgrade python-appimage
-
-    - name: Create AppimageDir
-      shell: bash
-      run: mkdir -p appimage
-
-    - name: Prepare AppimageDir
-      shell: bash
-      working-directory: appimage
-      run: |
-        mkdir -p usr/bin
-        mkdir -p usr/share/metainfo
-        cp ../yggdrasil/yggdrasil* usr/bin/
-        cp ../yggstack/yggstack usr/bin/
-        cp $GITHUB_WORKSPACE/source/xdg/*.{desktop,svg} $PWD/
-        cp $GITHUB_WORKSPACE/source/xdg/*metainfo.xml usr/share/metainfo/
-
-        cat > entrypoint.sh <<'EOF'
-        #!/usr/bin/env sh
-        set -e
-        export PATH="$APPDIR/usr/bin:$PATH"
-        export XDG_DATA_DIRS="$APPDIR/usr/share:$XDG_DATA_DIRS"
-        exec {{ python-executable }} -I -m yggui "$@"
-        EOF
-        chmod +x entrypoint.sh
-
-        cat > requirements.txt <<EOF
-        ${{ inputs.project-name }}@file:///$GITHUB_WORKSPACE/source
-        pygobject>=3.52.2
-        EOF
-
-    - name: Build AppImage
+    - name: Build self-contained AppImage
       shell: bash
       env:
-        PIP_NO_CACHE_DIR: 1
-      run: python-appimage build app -p 3.12 appimage -x appimage/usr
+        PROJECT_NAME: ${{ inputs.project-name }}
+        ARCH_TYPE: ${{ inputs.arch-type }}
+      run: |
+        mkdir -p "$GITHUB_WORKSPACE/appimage-output"
+        docker run --rm \
+          -e PROJECT_NAME \
+          -e ARCH_TYPE \
+          -v "$GITHUB_WORKSPACE/source:/source:ro" \
+          -v "$GITHUB_WORKSPACE/yggdrasil:/yggdrasil:ro" \
+          -v "$GITHUB_WORKSPACE/yggstack:/yggstack:ro" \
+          -v "$GITHUB_WORKSPACE/appimage-output:/output" \
+          -v "$GITHUB_ACTION_PATH:/action:ro" \
+          docker.io/alpine:3.22 \
+          /bin/sh /action/build.sh
+
+    - name: Test AppImage on musl and glibc distributions
+      shell: bash
+      env:
+        APPIMAGE_NAME: ${{ inputs.project-name }}-${{ inputs.arch-type }}.AppImage
+      run: |
+        for image in \
+          docker.io/alpine:3.22 \
+          docker.io/debian:12-slim \
+          docker.io/fedora:42 \
+          docker.io/opensuse/tumbleweed; do
+          docker run --rm \
+            -e APPIMAGE_EXTRACT_AND_RUN=1 \
+            -e DROSOPHILA_APPIMAGE_SMOKE_TEST=1 \
+            -v "$GITHUB_WORKSPACE/appimage-output:/appimage:ro" \
+            "$image" \
+            "/appimage/$APPIMAGE_NAME"
+        done
 
     - name: Upload AppImage artifact
       uses: actions/upload-artifact@v7
       with:
         name: ${{ inputs.project-name }}-appimage-${{ inputs.arch-type }}
-        path: ${{ inputs.project-name }}-${{ inputs.arch-type }}.AppImage
+        path: appimage-output/${{ inputs.project-name }}-${{ inputs.arch-type }}.AppImage
         if-no-files-found: error

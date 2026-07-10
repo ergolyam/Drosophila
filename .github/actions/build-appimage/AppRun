@@ -1,0 +1,39 @@
+#!/bin/sh
+set -eu
+
+if [ -z "${APPDIR:-}" ]; then
+    APPDIR=$(CDPATH= cd "$(dirname "$0")" && pwd)
+fi
+
+LOADER=
+for candidate in "$APPDIR"/lib/ld-musl-*.so.1; do
+    if [ -x "$candidate" ]; then
+        LOADER=$candidate
+        break
+    fi
+done
+
+if [ -z "$LOADER" ]; then
+    echo "Drosophila: bundled musl loader was not found" >&2
+    exit 127
+fi
+
+RUNTIME_LIBS="$APPDIR/lib:$APPDIR/usr/lib:$APPDIR/usr/lib/gdk-pixbuf-2.0/2.10.0/loaders:$APPDIR/usr/lib/gio/modules"
+export LD_LIBRARY_PATH="$RUNTIME_LIBS"
+export PATH="$APPDIR/usr/bin:${PATH:-/usr/bin:/bin}"
+export PYTHONHOME="$APPDIR/usr"
+export GI_TYPELIB_PATH="$APPDIR/usr/lib/girepository-1.0"
+export GIO_MODULE_DIR="$APPDIR/usr/lib/gio/modules"
+export GDK_PIXBUF_MODULE_FILE="$APPDIR/usr/lib/gdk-pixbuf-2.0/2.10.0/loaders.cache"
+export GSETTINGS_SCHEMA_DIR="$APPDIR/usr/share/glib-2.0/schemas"
+export XDG_DATA_DIRS="$APPDIR/usr/share:${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
+export SSL_CERT_FILE="$APPDIR/etc/ssl/cert.pem"
+export FONTCONFIG_FILE="$APPDIR/etc/fonts/fonts.conf"
+export FONTCONFIG_SYSROOT="$APPDIR"
+export GSK_RENDERER=cairo
+
+if [ "${DROSOPHILA_APPIMAGE_SMOKE_TEST:-0}" = "1" ]; then
+    exec "$LOADER" --library-path "$RUNTIME_LIBS" "$APPDIR/usr/bin/python3" -I -c 'import gi; gi.require_version("Gtk", "4.0"); gi.require_version("Adw", "1"); from gi.repository import Gtk, Adw; import yggui; print(Gtk.get_major_version(), Adw.get_major_version())'
+fi
+
+exec "$LOADER" --library-path "$RUNTIME_LIBS" "$APPDIR/usr/bin/python3" -I -m yggui "$@"
