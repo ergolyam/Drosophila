@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <interface>
   <requires lib="gtk" version="4.12"/>
-  <requires lib="adw" version="1.0"/>
+  <requires lib="adw" version="1.6"/>
 
   <object class="AdwApplicationWindow" id="main_window">
     <property name="accessible-role">meter</property>

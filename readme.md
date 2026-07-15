@@ -1,61 +1,40 @@
 # Drosophila
-A modern GTK 4 + libadwaita desktop interface for running, configuring and monitoring a local [Yggdrasil](https://github.com/yggdrasil-network/yggdrasil-go) overlay-network node on Linux and Windows.
 
-## Quick start
+Drosophila is a desktop application for running, configuring and monitoring a [Yggdrasil-ng](https://github.com/Revertron/Yggdrasil-ng) node.
 
-### Flatpak
+## Features
+
+- Start and stop a Yggdrasil-ng node
+- View the IPv6 address, subnet and peer status
+- Add, remove and discover peers
+- Edit or generate a private key
+- Use a local SOCKS5 proxy in Flatpak
+- Use a TUN interface on Linux and Windows
+
+## Flatpak
 
 ```bash
 flatpak remote-add --user Drosophila https://ergolyam.github.io/Drosophila/ergolyam.flatpakrepo
 flatpak install --user Drosophila io.github.ergolyam.Drosophila
 ```
 
-### Windows
+The SOCKS5 proxy listens on `127.0.0.1:1080` by default.
 
-Download the latest Windows build from the [releases page](https://github.com/ergolyam/Drosophila/releases) and run it and extract the portable app folder. Run `Drosophila.exe` from the extracted folder
+## Windows
 
-### AppImage
+Download the Windows installer from the [releases page](https://github.com/ergolyam/Drosophila/releases) and run it. Configuration is stored in the application directory.
 
-Download the latest AppImage from the [releases page](https://github.com/ergolyam/Drosophila/releases) and make it executable:
+## Build
 
-```bash
-chmod +x Drosophila-*.AppImage
-./Drosophila-*.AppImage
-```
-
-### Python package
-
-```bash
-pip install --upgrade git+https://github.com/ergolyam/Drosophila.git@main#egg=Drosophila
-python -m yggui
-```
-
-## Documentation
-
-- [Linux development](.github/docs/development-linux.md)
-- [Windows development](.github/docs/development-windows.md)
+- [Linux](docs/development-linux.md)
+- [Windows](docs/development-windows.md)
 
 ## Screenshots
 
-| Screenshot 1                                          | Screenshot 2                                             |
-|-------------------------------------------------------|----------------------------------------------------------|
-| ![Main page screenshot](.github/docs/main.png)        | ![Settings screenshot](.github/docs/settings.png)        |
-
-## Features
-
-- One-click switch toggle Yggdrasil daemon or Yggstack SOCKS proxy
-- Live status panel showing IPv6 address and /64 subnet
-- Peer management with validation and persistence
-- Optional SOCKS5 proxy & DNS forwarder via Yggstack
-- Private-key viewer / editor / generator
-- Clipboard helpers for address & subnet
-- Flatpak-aware: automatically moves required binaries into the sandbox
-- Graceful shutdown on exit or SIGINT
+| Main page | Settings |
+|---|---|
+| ![Main page screenshot](.github/docs/main.png) | ![Settings screenshot](.github/docs/settings.png) |
 
 ## License
 
-This program is free software: you can redistribute it and/or modify it under the terms of the **GNU General Public License, version 3 or (at your option) any later version** published by the Free Software Foundation.
-
-Copyright © 2025 ergolyam
-
-See the full license text in the [LICENSE](license) file or online at <https://www.gnu.org/licenses/gpl-3.0.txt>.
+Drosophila is licensed under GPL-3.0-or-later. Yggdrasil-ng is licensed under MPL-2.0.

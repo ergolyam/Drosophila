@@ -1,5 +1,5 @@
-name: Build windows
-description: Checkout and build the windows executable, then publish it to the artifacts.
+name: Build Windows installer
+description: Build the application and package it as a 7-Zip self-extracting installer.
 
 inputs:
   project-name:
@@ -16,7 +16,6 @@ runs:
       uses: actions/checkout@v6
       with:
         path: source
-        fetch-depth: 0
 
     - name: Setup MSYS2
       uses: msys2/setup-msys2@v2
@@ -26,30 +25,13 @@ runs:
         msystem: ${{ inputs.arch-type == 'aarch64' && 'CLANGARM64' || 'MINGW64' }}
         update: true
         install: >-
-          git
-          mingw-w64-${{ env.MSYS2_PREFIX }}-adwaita-icon-theme
-          mingw-w64-${{ env.MSYS2_PREFIX }}-gdk-pixbuf2
-          mingw-w64-${{ env.MSYS2_PREFIX }}-gobject-introspection
-          mingw-w64-${{ env.MSYS2_PREFIX }}-gtk4
-          mingw-w64-${{ env.MSYS2_PREFIX }}-hicolor-icon-theme
           mingw-w64-${{ env.MSYS2_PREFIX }}-libadwaita
-          mingw-w64-${{ env.MSYS2_PREFIX }}-librsvg
-          mingw-w64-${{ env.MSYS2_PREFIX }}-pyinstaller
-          mingw-w64-${{ env.MSYS2_PREFIX }}-pyinstaller-hooks-contrib
-          mingw-w64-${{ env.MSYS2_PREFIX }}-python
-          mingw-w64-${{ env.MSYS2_PREFIX }}-python-gobject
-          mingw-w64-${{ env.MSYS2_PREFIX }}-python-pip
-          mingw-w64-${{ env.MSYS2_PREFIX }}-python-setuptools-scm
+          mingw-w64-${{ env.MSYS2_PREFIX }}-pkgconf
+          mingw-w64-${{ env.MSYS2_PREFIX }}-rust
 
     - name: Install 7-Zip
       shell: powershell
       run: choco install 7zip -y --no-progress
-
-    - name: Build yggdrasil and yggstack
-      uses: ./.github/actions/build-ygg
-      with:
-        goos: windows
-        goarch: ${{ inputs.arch-type == 'aarch64' && 'arm64' || 'amd64' }}
 
     - name: Download Wintun
       shell: bash
@@ -59,32 +41,55 @@ runs:
         curl.exe -fL -o wintun.zip https://www.wintun.net/builds/wintun-0.14.1.zip
         echo "07c256185d6ee3652e09fa55c0b673e2624b565e02c4b9091c79ca7d2f24ef51  wintun.zip" | sha256sum -c -
         "/c/Program Files/7-Zip/7z.exe" x -y wintun.zip -owintun
-        cp wintun/wintun/bin/${ARCH}/wintun.dll source/
+        cp "wintun/wintun/bin/${ARCH}/wintun.dll" source/
 
-    - name: Prepare binaries
-      shell: bash
-      run: |
-        cp yggdrasil/yggdrasil.exe source/
-        cp yggdrasil/yggdrasilctl.exe source/
-        cp yggstack/yggstack.exe source/
+    - name: Build application
+      working-directory: source
+      shell: msys2 {0}
+      run: cargo build --release --locked
 
-    - name: Build ${{ inputs.project-name }}
+    - name: Assemble portable directory
       working-directory: source
       shell: msys2 {0}
       run: |
-        python -m PyInstaller \
-          --clean \
-          --noconfirm \
-          --distpath dist \
-          --workpath build \
-          pyinstaller-windows.spec
+        bundle="dist/${{ inputs.project-name }}"
+        mkdir -p "$bundle/lib/gdk-pixbuf-2.0/2.10.0" "$bundle/share"
+        cp "target/release/drosophila.exe" "$bundle/Drosophila.exe"
+        cp wintun.dll license readme.md "$bundle/"
 
-    - name: Package SFX
+        cp -r "$MINGW_PREFIX/share/glib-2.0" "$bundle/share/"
+        cp -r "$MINGW_PREFIX/share/icons" "$bundle/share/"
+        cp -r "$MINGW_PREFIX/share/libadwaita" "$bundle/share/" 2>/dev/null || true
+        cp -r "$MINGW_PREFIX/lib/gdk-pixbuf-2.0/2.10.0/loaders" "$bundle/lib/gdk-pixbuf-2.0/2.10.0/"
+
+        queue_file="$(mktemp)"
+        next_file="$(mktemp)"
+        printf '%s\n' "$bundle/Drosophila.exe" "$bundle/lib/gdk-pixbuf-2.0/2.10.0/loaders/"*.dll > "$queue_file"
+        while [ -s "$queue_file" ]; do
+          : > "$next_file"
+          while IFS= read -r binary; do
+            ldd "$binary" | awk '/=> \/(mingw64|clangarm64)\// { print $3 }' | while IFS= read -r dll; do
+              target="$bundle/$(basename "$dll")"
+              if [ ! -e "$target" ]; then
+                cp "$dll" "$target"
+                printf '%s\n' "$target" >> "$next_file"
+              fi
+            done
+          done < "$queue_file"
+          cp "$next_file" "$queue_file"
+        done
+        rm -f "$queue_file" "$next_file"
+
+        cd "$bundle"
+        gdk-pixbuf-query-loaders lib/gdk-pixbuf-2.0/2.10.0/loaders/*.dll \
+          > lib/gdk-pixbuf-2.0/2.10.0/loaders.cache
+
+    - name: Package 7-Zip installer
       shell: bash
       env:
         BUNDLE_PREFIX: ${{ inputs.project-name }}-${{ inputs.arch-type }}
       run: |
-        "/c/Program Files/7-Zip/7z.exe" a -mx=9 "${BUNDLE_PREFIX}.7z" ./source/dist/${{ inputs.project-name }}
+        "/c/Program Files/7-Zip/7z.exe" a -mx=9 "${BUNDLE_PREFIX}.7z" "./source/dist/${{ inputs.project-name }}"
         cat "/c/Program Files/7-Zip/7z.sfx" "${BUNDLE_PREFIX}.7z" > "${BUNDLE_PREFIX}.exe"
 
     - name: Upload Windows artifact

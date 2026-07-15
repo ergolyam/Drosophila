@@ -1,22 +1,16 @@
-# Python-generated files
-__pycache__/
-*.py[oc]
-build/
+target/
 dist/
-wheels/
-*.egg-info
-_version.py
 
-# Virtual environments
-.venv
-
-# Files
-config.json
-
-# Flatpak
+# Flatpak build outputs
 .flatpak-builder/
 build-dir/
-appimage
+repo/
+
+# Editor and local environment files
+.idea/
+.vscode/
+*.swp
+*.tmp
 
 # Markdown
 *.md

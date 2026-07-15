@@ -2,11 +2,12 @@
 <component type="desktop">
   <id>io.github.ergolyam.Drosophila</id>
   <metadata_license>CC0-1.0</metadata_license>
-  <project_license>GPL-3.0</project_license>
+  <project_license>GPL-3.0-or-later</project_license>
   <name>Drosophila</name>
-  <summary>Simple Libadwaita/GTK 4 frontend that shows status and lets you control Yggdrasil.</summary>
+  <summary>Graphical interface for Yggdrasil-ng</summary>
   <description>
-    <p>A modern GTK 4 + libadwaita desktop interface for running, configuring and monitoring a local Yggdrasil overlay-network node on Linux.</p>
+    <p>Run, configure and monitor a Yggdrasil-ng node.</p>
+    <p>Use a local SOCKS5 proxy with Flatpak or a TUN interface with a native build.</p>
   </description>
   <content_rating type="oars-1.1">
     <content_attribute id="violence-fantasy">none</content_attribute>
@@ -28,7 +29,7 @@
     <content_attribute id="language-humor">none</content_attribute>
     <content_attribute id="language-discrimination">none</content_attribute>
   </content_rating>
-  <provides><binary>yggui</binary></provides>
+  <provides><binary>drosophila</binary></provides>
   <screenshots>
     <screenshot type="default">
       <image>https://github.com/ergolyam/Drosophila/raw/ee6ca333adbdc6b72e6fbf7201776bf518a0d288/.github/docs/main.png</image>
@@ -45,6 +46,7 @@
   <url type="vcs-browser">https://github.com/ergolyam/Drosophila</url>
   <url type="bugtracker">https://github.com/ergolyam/Drosophila/issues</url>
   <releases>
+    <release version="2.0.0" date="2026-07-15"/>
     <release version="1.6.0" date="2026-07-04"/>
     <release version="1.5.0" date="2026-04-27"/>
     <release version="1.4.0" date="2026-04-26"/>
@@ -64,4 +66,3 @@
     <release version="1.0.0" date="2025-07-23"/>
   </releases>
 </component>
-

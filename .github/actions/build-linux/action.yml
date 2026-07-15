@@ -1,0 +1,52 @@
+name: Build Linux binary
+description: Build the application and publish the binary as an artifact.
+
+inputs:
+  project-name:
+    description: Name of the final product after the build
+    required: true
+  libc-type:
+    description: C library type for the build
+    required: true
+  arch-type:
+    description: Architecture type for the build
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Checkout code
+      uses: actions/checkout@v6
+      with:
+        path: source
+
+    - name: Install glibc dependencies
+      if: inputs.libc-type == 'glibc'
+      shell: sh
+      run: |
+        apt-get update
+        apt-get install --yes --no-install-recommends libadwaita-1-dev
+
+    - name: Install musl dependencies
+      if: inputs.libc-type == 'musl'
+      shell: sh
+      run: apk add --no-cache libadwaita-dev
+
+    - name: Build application
+      working-directory: source
+      shell: sh
+      env:
+        RUSTFLAGS: ${{ inputs.libc-type == 'musl' && '-C target-feature=-crt-static' || '' }}
+      run: cargo build --release --locked
+
+    - name: Prepare binary
+      working-directory: source
+      shell: sh
+      run: install -Dm0755 target/release/drosophila ../${{ inputs.project-name }}-linux-${{ inputs.libc-type }}-${{ inputs.arch-type }}
+
+    - name: Upload Linux artifact
+      uses: actions/upload-artifact@v7
+      with:
+        name: ${{ inputs.project-name }}-linux-${{ inputs.libc-type }}-${{ inputs.arch-type }}
+        path: ${{ inputs.project-name }}-linux-${{ inputs.libc-type }}-${{ inputs.arch-type }}
+        if-no-files-found: error

@@ -1,17 +1,16 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <interface>
   <requires lib="gtk"  version="4.12"/>
-  <requires lib="adw"  version="1.0"/>
+  <requires lib="adw"  version="1.6"/>
 
-  <object class="AdwAboutWindow" id="about_window">
+  <object class="AdwAboutDialog" id="about_dialog">
     <property name="application-name">Drosophila</property>
     <property name="application-icon">io.github.ergolyam.Drosophila</property>
     <property name="developer-name">ergolyam</property>
     <property name="license-type">gpl-3-0</property>
     <property name="website">https://github.com/ergolyam/Drosophila</property>
     <property name="issue-url">https://github.com/ergolyam/Drosophila/issues</property>
-    <property name="comments">Simple Libadwaita/GTK 4 frontend that shows status and lets you control Yggdrasil.</property>
+    <property name="comments">Graphical interface for Yggdrasil-ng.</property>
     <property name="translator-credits"/>
   </object>
 </interface>
-

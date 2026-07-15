@@ -2,61 +2,33 @@ app-id: io.github.ergolyam.Drosophila
 runtime: org.gnome.Platform
 runtime-version: '49'
 sdk: org.gnome.Sdk
-command: yggui
+command: drosophila
 
 finish-args:
   - --socket=wayland
   - --socket=fallback-x11
   - --share=ipc
   - --share=network
-  - --talk-name=org.freedesktop.Flatpak
-  - --filesystem=xdg-run/yggui:create
 
 sdk-extensions:
-  - org.freedesktop.Sdk.Extension.golang
+  - org.freedesktop.Sdk.Extension.rust-stable
+
 build-options:
-  append-path: /usr/lib/sdk/golang/bin
+  append-path: /usr/lib/sdk/rust-stable/bin
+  env:
+    CARGO_HOME: /run/build/drosophila/cargo
 
 modules:
-  - python3-modules.yaml
-  - name: yggdrasil
-    buildsystem: simple
-    build-options:
-      env:
-        CGO_ENABLED: "0"
-        GOFLAGS: "-mod=vendor"
-    build-commands:
-      - ./build
-      - install -Dm755 yggdrasil     /app/bin/yggdrasil
-      - install -Dm755 yggdrasilctl  /app/bin/yggdrasilctl
-    sources:
-      - type: git
-        url: https://github.com/yggdrasil-network/yggdrasil-go.git
-        tag: v0.5.13
-      - yggdrasil-modules.yaml
-
-  - name: yggstack
-    buildsystem: simple
-    build-options:
-      env:
-        CGO_ENABLED: "0"
-        GOFLAGS: "-mod=vendor"
-    build-commands:
-      - ./build
-      - install -Dm755 yggstack /app/bin/yggstack
-    sources:
-      - type: git
-        url: https://github.com/yggdrasil-network/yggstack.git
-        tag: 1.0.5
-      - yggstack-modules.yaml
-
-  - name: yggui
+  - name: drosophila
     buildsystem: simple
     build-commands:
-      - pip3 install --no-build-isolation --no-cache-dir --no-deps --prefix=/app .
+      - cargo --offline build --release --locked
+      - install -Dm755 target/release/drosophila /app/bin/drosophila
+      - install -Dm644 license /app/share/licenses/io.github.ergolyam.Drosophila/COPYING
       - install -Dm644 xdg/io.github.ergolyam.Drosophila.svg /app/share/icons/hicolor/scalable/apps/io.github.ergolyam.Drosophila.svg
-      - install -Dm755 xdg/io.github.ergolyam.Drosophila.desktop /app/share/applications/io.github.ergolyam.Drosophila.desktop
+      - install -Dm644 xdg/io.github.ergolyam.Drosophila.desktop /app/share/applications/io.github.ergolyam.Drosophila.desktop
       - install -Dm644 xdg/io.github.ergolyam.Drosophila.metainfo.xml /app/share/metainfo/io.github.ergolyam.Drosophila.metainfo.xml
     sources:
       - type: dir
         path: ..
+      - cargo-sources.json

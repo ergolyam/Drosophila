@@ -112,7 +112,11 @@ jobs:
       - name: Rename release assets
         working-directory: builds
         run: |
-          for f in ${{ env.PROJECT_NAME }}-*.AppImage ${{ env.PROJECT_NAME }}-*.exe; do
+          for f in ${{ env.PROJECT_NAME }}-*.exe; do
+            [ -e "$f" ] || continue
+            mv "$f" "${{ env.PROJECT_NAME }}-${{ github.ref_name }}-${f#${{ env.PROJECT_NAME }}-}"
+          done
+          for f in ${{ env.PROJECT_NAME }}-linux-*; do
             [ -e "$f" ] || continue
             mv "$f" "${{ env.PROJECT_NAME }}-${{ github.ref_name }}-${f#${{ env.PROJECT_NAME }}-}"
           done
