@@ -310,9 +310,11 @@ impl Ui {
     }
 
     fn connect_copy_row(self: &Rc<Self>, row: &adw::ActionRow) {
-        row.connect_activated({
+        let gesture = gtk::GestureClick::new();
+        gesture.connect_released({
             let weak = Rc::downgrade(self);
-            move |row| {
+            let row = row.clone();
+            move |_, _, _, _| {
                 let text = row.subtitle().unwrap_or_default();
                 if text.is_empty() || text == "–" {
                     return;
@@ -323,6 +325,7 @@ impl Ui {
                 }
             }
         });
+        row.add_controller(gesture);
     }
 
     fn on_ygg_switch(self: &Rc<Self>, desired: bool) {
