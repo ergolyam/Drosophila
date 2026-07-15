@@ -126,11 +126,23 @@ impl Ui {
         let stack: adw::ViewStack = object(&builder, "stack")?;
         let main: gtk::Box = object(&builder, "main")?;
         let settings: gtk::Box = object(&builder, "settings")?;
+        let private_key_row: adw::EntryRow = object(&builder, "private_key_row")?;
         let main_page = stack.add_titled(&main, Some("main"), "Main");
         main_page.set_icon_name(Some("go-home-symbolic"));
         let settings_page = stack.add_titled(&settings, Some("settings"), "Settings");
         settings_page.set_icon_name(Some("emblem-system-symbolic"));
         stack.set_visible_child(&main);
+        settings.set_focusable(true);
+        stack.connect_visible_child_notify({
+            let settings = settings.clone();
+            let private_key_row = private_key_row.clone();
+            move |stack| {
+                if stack.visible_child_name().as_deref() == Some("settings") {
+                    settings.grab_focus();
+                    private_key_row.set_position(-1);
+                }
+            }
+        });
 
         let provider = gtk::CssProvider::new();
         provider.load_from_string(include_str!("../resources/ui.css"));
@@ -148,7 +160,7 @@ impl Ui {
             ygg_card: object(&builder, "ygg_card")?,
             address_row: object(&builder, "address_row")?,
             subnet_row: object(&builder, "subnet_row")?,
-            private_key_row: object(&builder, "private_key_row")?,
+            private_key_row,
             private_key_regen: object(&builder, "private_key_regen_icon")?,
             socks_card: object(&builder, "socks_card")?,
             socks_listen_row: object(&builder, "socks_listen_row")?,
