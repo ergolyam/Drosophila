@@ -26,6 +26,7 @@ runs:
         update: true
         install: >-
           mingw-w64-${{ env.MSYS2_PREFIX }}-libadwaita
+          mingw-w64-${{ env.MSYS2_PREFIX }}-ntldd
           mingw-w64-${{ env.MSYS2_PREFIX }}-pkgconf
           mingw-w64-${{ env.MSYS2_PREFIX }}-rust
 
@@ -64,23 +65,15 @@ runs:
         cp -r "${MINGW_PREFIX}/share/libadwaita" "${bundle_dir}/share/" 2>/dev/null || true
         cp -r "${MINGW_PREFIX}/lib/gdk-pixbuf-2.0/2.10.0/loaders" "${bundle_dir}/lib/gdk-pixbuf-2.0/2.10.0/"
 
-        queue_file="$(mktemp)"
-        next_queue_file="$(mktemp)"
-        printf '%s\n' "${bundle_dir}/Drosophila.exe" "${bundle_dir}/lib/gdk-pixbuf-2.0/2.10.0/loaders/"*.dll > "${queue_file}"
-        while [ -s "${queue_file}" ]; do
-          : > "${next_queue_file}"
-          while IFS= read -r binary_path; do
-            ldd "${binary_path}" | awk '/=> \/(mingw64|clangarm64)\// { print $3 }' | while IFS= read -r dll_path; do
-              target_path="${bundle_dir}/$(basename "${dll_path}")"
-              if [ ! -e "${target_path}" ]; then
-                cp "${dll_path}" "${target_path}"
-                printf '%s\n' "${target_path}" >> "${next_queue_file}"
-              fi
-            done
-          done < "${queue_file}"
-          cp "${next_queue_file}" "${queue_file}"
-        done
-        rm -f "${queue_file}" "${next_queue_file}"
+        ntldd -R -D "${MINGW_PREFIX}/bin" \
+          "${bundle_dir}/Drosophila.exe" \
+          "${bundle_dir}/lib/gdk-pixbuf-2.0/2.10.0/loaders/"*.dll \
+          | awk '/=> .*\\(mingw64|clangarm64)\\/ { print $3 }' \
+          | while IFS= read -r windows_dll_path; do
+            dll_path="$(cygpath --unix "${windows_dll_path}")"
+            target_path="${bundle_dir}/$(basename "${dll_path}")"
+            cp "${dll_path}" "${target_path}"
+          done
 
         cd "${bundle_dir}"
         gdk-pixbuf-query-loaders lib/gdk-pixbuf-2.0/2.10.0/loaders/*.dll \
