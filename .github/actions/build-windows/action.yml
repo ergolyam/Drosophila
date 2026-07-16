@@ -51,36 +51,38 @@ runs:
     - name: Assemble portable directory
       working-directory: source
       shell: msys2 {0}
+      env:
+        PROJECT_NAME: ${{ inputs.project-name }}
       run: |
-        bundle="dist/${{ inputs.project-name }}"
-        mkdir -p "$bundle/lib/gdk-pixbuf-2.0/2.10.0" "$bundle/share"
-        cp "target/release/drosophila.exe" "$bundle/Drosophila.exe"
-        cp wintun.dll license readme.md "$bundle/"
+        bundle_dir="dist/${PROJECT_NAME}"
+        mkdir -p "${bundle_dir}/lib/gdk-pixbuf-2.0/2.10.0" "${bundle_dir}/share"
+        cp "target/release/drosophila.exe" "${bundle_dir}/Drosophila.exe"
+        cp wintun.dll license readme.md "${bundle_dir}/"
 
-        cp -r "$MINGW_PREFIX/share/glib-2.0" "$bundle/share/"
-        cp -r "$MINGW_PREFIX/share/icons" "$bundle/share/"
-        cp -r "$MINGW_PREFIX/share/libadwaita" "$bundle/share/" 2>/dev/null || true
-        cp -r "$MINGW_PREFIX/lib/gdk-pixbuf-2.0/2.10.0/loaders" "$bundle/lib/gdk-pixbuf-2.0/2.10.0/"
+        cp -r "${MINGW_PREFIX}/share/glib-2.0" "${bundle_dir}/share/"
+        cp -r "${MINGW_PREFIX}/share/icons" "${bundle_dir}/share/"
+        cp -r "${MINGW_PREFIX}/share/libadwaita" "${bundle_dir}/share/" 2>/dev/null || true
+        cp -r "${MINGW_PREFIX}/lib/gdk-pixbuf-2.0/2.10.0/loaders" "${bundle_dir}/lib/gdk-pixbuf-2.0/2.10.0/"
 
         queue_file="$(mktemp)"
-        next_file="$(mktemp)"
-        printf '%s\n' "$bundle/Drosophila.exe" "$bundle/lib/gdk-pixbuf-2.0/2.10.0/loaders/"*.dll > "$queue_file"
-        while [ -s "$queue_file" ]; do
-          : > "$next_file"
-          while IFS= read -r binary; do
-            ldd "$binary" | awk '/=> \/(mingw64|clangarm64)\// { print $3 }' | while IFS= read -r dll; do
-              target="$bundle/$(basename "$dll")"
-              if [ ! -e "$target" ]; then
-                cp "$dll" "$target"
-                printf '%s\n' "$target" >> "$next_file"
+        next_queue_file="$(mktemp)"
+        printf '%s\n' "${bundle_dir}/Drosophila.exe" "${bundle_dir}/lib/gdk-pixbuf-2.0/2.10.0/loaders/"*.dll > "${queue_file}"
+        while [ -s "${queue_file}" ]; do
+          : > "${next_queue_file}"
+          while IFS= read -r binary_path; do
+            ldd "${binary_path}" | awk '/=> \/(mingw64|clangarm64)\// { print $3 }' | while IFS= read -r dll_path; do
+              target_path="${bundle_dir}/$(basename "${dll_path}")"
+              if [ ! -e "${target_path}" ]; then
+                cp "${dll_path}" "${target_path}"
+                printf '%s\n' "${target_path}" >> "${next_queue_file}"
               fi
             done
-          done < "$queue_file"
-          cp "$next_file" "$queue_file"
+          done < "${queue_file}"
+          cp "${next_queue_file}" "${queue_file}"
         done
-        rm -f "$queue_file" "$next_file"
+        rm -f "${queue_file}" "${next_queue_file}"
 
-        cd "$bundle"
+        cd "${bundle_dir}"
         gdk-pixbuf-query-loaders lib/gdk-pixbuf-2.0/2.10.0/loaders/*.dll \
           > lib/gdk-pixbuf-2.0/2.10.0/loaders.cache
 
@@ -88,8 +90,9 @@ runs:
       shell: bash
       env:
         BUNDLE_PREFIX: ${{ inputs.project-name }}-${{ inputs.arch-type }}
+        PROJECT_NAME: ${{ inputs.project-name }}
       run: |
-        "/c/Program Files/7-Zip/7z.exe" a -mx=9 "${BUNDLE_PREFIX}.7z" "./source/dist/${{ inputs.project-name }}"
+        "/c/Program Files/7-Zip/7z.exe" a -mx=9 "${BUNDLE_PREFIX}.7z" "./source/dist/${PROJECT_NAME}"
         cat "/c/Program Files/7-Zip/7z.sfx" "${BUNDLE_PREFIX}.7z" > "${BUNDLE_PREFIX}.exe"
 
     - name: Upload Windows artifact
