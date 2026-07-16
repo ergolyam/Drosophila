@@ -17,7 +17,7 @@ jobs:
 
     steps:
       - name: Install native dependencies
-        run: apk add --no-cache libadwaita-dev
+        run: apk add --no-cache git libadwaita-dev
 
       - name: Checkout code
         uses: actions/checkout@v6
