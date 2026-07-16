@@ -21,7 +21,7 @@ use tokio::sync::{mpsc, oneshot};
 use tokio_util::codec::{Framed, LinesCodec};
 
 use crate::backend::RunningNode;
-use crate::config::{StoredConfig, is_flatpak};
+use crate::config::{ConnectionMode, StoredConfig, is_flatpak};
 
 const WORKER_FLAG: &str = "--privileged-tun-worker";
 const PROTOCOL_VERSION: u32 = 1;
@@ -227,7 +227,7 @@ async fn worker_loop(arguments: WorkerArguments) -> Result<()> {
     else {
         bail!("the first privileged worker command was not start");
     };
-    config.drosophila.proxy_enabled = false;
+    config.drosophila.mode = ConnectionMode::Tun;
 
     let node = match RunningNode::start(*config).await {
         Ok(node) => node,

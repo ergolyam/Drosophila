@@ -2,8 +2,13 @@ mod app;
 mod backend;
 mod config;
 mod discovery;
+#[cfg(feature = "tun")]
+mod privileged;
+#[cfg(not(feature = "tun"))]
+#[path = "privileged_disabled.rs"]
 mod privileged;
 mod proxy;
+mod system_proxy;
 
 use tracing_subscriber::EnvFilter;
 
@@ -27,6 +32,7 @@ fn main() -> gtk::glib::ExitCode {
         .try_init()
         .ok();
 
+    #[cfg(feature = "tun")]
     if let Some(worker) = privileged::WorkerArguments::parse(&arguments) {
         return match worker.and_then(privileged::run_worker) {
             Ok(()) => gtk::glib::ExitCode::SUCCESS,

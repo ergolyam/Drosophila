@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::net::{IpAddr, Ipv6Addr, SocketAddr, SocketAddrV6};
-use std::sync::Arc;
 use std::sync::mpsc as std_mpsc;
+use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
 
@@ -9,16 +9,19 @@ use anyhow::{Context, Result, anyhow, bail};
 use tokio::sync::mpsc;
 use yggdrasil::core::Core;
 use yggdrasil::ipv6rwc::ReadWriteCloser;
+#[cfg(feature = "tun")]
 use yggdrasil::tun::TunAdapter;
 
-use crate::config::{StoredConfig, is_flatpak};
+use crate::config::{ConnectionMode, StoredConfig, is_flatpak};
 use crate::discovery::{DiscoveredPeer, discover_peers};
 use crate::privileged::{PrivilegedNode, RemoteEnvelope, RemoteEvent, WorkerEvent};
 use crate::proxy::UserspaceProxy;
+use crate::system_proxy::SystemProxy;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum NodeMode {
     Tun,
+    SystemProxy,
     Proxy,
 }
 
@@ -50,14 +53,19 @@ enum BackendCommand {
 
 #[derive(Clone)]
 pub struct BackendHandle {
+    inner: Arc<BackendHandleInner>,
+}
+
+struct BackendHandleInner {
     sender: mpsc::UnboundedSender<BackendCommand>,
+    thread: Mutex<Option<thread::JoinHandle<()>>>,
 }
 
 impl BackendHandle {
     pub fn spawn() -> (Self, std_mpsc::Receiver<BackendEvent>) {
         let (command_tx, command_rx) = mpsc::unbounded_channel();
         let (event_tx, event_rx) = std_mpsc::channel();
-        thread::Builder::new()
+        let thread = thread::Builder::new()
             .name("drosophila-network".to_owned())
             .spawn(move || {
                 let runtime = tokio::runtime::Builder::new_multi_thread()
@@ -68,31 +76,54 @@ impl BackendHandle {
                 runtime.block_on(backend_loop(command_rx, event_tx));
             })
             .expect("failed to start network thread");
-        (Self { sender: command_tx }, event_rx)
+        (
+            Self {
+                inner: Arc::new(BackendHandleInner {
+                    sender: command_tx,
+                    thread: Mutex::new(Some(thread)),
+                }),
+            },
+            event_rx,
+        )
     }
 
     pub fn start(&self, config: StoredConfig) {
-        let _ = self.sender.send(BackendCommand::Start(Box::new(config)));
+        let _ = self
+            .inner
+            .sender
+            .send(BackendCommand::Start(Box::new(config)));
     }
 
     pub fn stop(&self) {
-        let _ = self.sender.send(BackendCommand::Stop);
+        let _ = self.inner.sender.send(BackendCommand::Stop);
     }
 
     pub fn add_peer(&self, peer: String) {
-        let _ = self.sender.send(BackendCommand::AddPeer(peer));
+        let _ = self.inner.sender.send(BackendCommand::AddPeer(peer));
     }
 
     pub fn remove_peer(&self, peer: String) {
-        let _ = self.sender.send(BackendCommand::RemovePeer(peer));
+        let _ = self.inner.sender.send(BackendCommand::RemovePeer(peer));
     }
 
     pub fn discover(&self, id: u64, protocols: Vec<String>) {
-        let _ = self.sender.send(BackendCommand::Discover { id, protocols });
+        let _ = self
+            .inner
+            .sender
+            .send(BackendCommand::Discover { id, protocols });
     }
 
     pub fn shutdown(&self) {
-        let _ = self.sender.send(BackendCommand::Shutdown);
+        let _ = self.inner.sender.send(BackendCommand::Shutdown);
+        let thread = self
+            .inner
+            .thread
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .take();
+        if let Some(thread) = thread {
+            let _ = thread.join();
+        }
     }
 }
 
@@ -205,23 +236,7 @@ async fn start_node(
     remote_tx: &mpsc::UnboundedSender<RemoteEnvelope>,
     events: &std_mpsc::Sender<BackendEvent>,
 ) -> Option<ActiveNode> {
-    if config.drosophila.proxy_enabled {
-        match RunningNode::start(config).await {
-            Ok(started) => {
-                let _ = events.send(BackendEvent::Started {
-                    address: started.address.clone(),
-                    subnet: started.subnet.clone(),
-                    mode: started.mode,
-                });
-                Some(ActiveNode::Local(started))
-            }
-            Err(error) => {
-                tracing::error!(%error, "failed to start Yggdrasil-ng");
-                let _ = events.send(BackendEvent::Failed(format!("{error:#}")));
-                None
-            }
-        }
-    } else {
+    if config.drosophila.effective_mode() == ConnectionMode::Tun {
         *next_remote_session = next_remote_session.wrapping_add(1);
         let session = *next_remote_session;
         match PrivilegedNode::launch(config, session, remote_tx.clone()).await {
@@ -231,6 +246,22 @@ async fn start_node(
             }),
             Err(error) => {
                 tracing::error!(%error, "failed to authorize the TUN worker");
+                let _ = events.send(BackendEvent::Failed(format!("{error:#}")));
+                None
+            }
+        }
+    } else {
+        match RunningNode::start(config).await {
+            Ok(started) => {
+                let _ = events.send(BackendEvent::Started {
+                    address: started.address.clone(),
+                    subnet: started.subnet.clone(),
+                    mode: started.mode,
+                });
+                Some(ActiveNode::Local(Box::new(started)))
+            }
+            Err(error) => {
+                tracing::error!(%error, "failed to start Yggdrasil-ng");
                 let _ = events.send(BackendEvent::Failed(format!("{error:#}")));
                 None
             }
@@ -277,14 +308,14 @@ fn handle_remote_event(
 }
 
 enum ActiveNode {
-    Local(RunningNode),
+    Local(Box<RunningNode>),
     Privileged { session: u64, node: PrivilegedNode },
 }
 
 impl ActiveNode {
     async fn close(self) {
         match self {
-            Self::Local(node) => node.close().await,
+            Self::Local(node) => (*node).close().await,
             Self::Privileged { node, .. } => node.close().await,
         }
     }
@@ -292,27 +323,34 @@ impl ActiveNode {
 
 pub(crate) struct RunningNode {
     core: Arc<Core>,
+    #[cfg(feature = "tun")]
     tun: Option<TunAdapter>,
     proxy: Option<UserspaceProxy>,
+    system_proxy: Option<SystemProxy>,
     address: String,
     subnet: String,
     mode: NodeMode,
 }
 
+struct StartedTransports {
+    #[cfg(feature = "tun")]
+    tun: Option<TunAdapter>,
+    proxy: Option<UserspaceProxy>,
+    system_proxy: Option<SystemProxy>,
+}
+
 impl RunningNode {
     pub(crate) async fn start(mut stored: StoredConfig) -> Result<Self> {
-        let mode = if stored.drosophila.proxy_enabled {
-            NodeMode::Proxy
-        } else {
-            NodeMode::Tun
+        let mode = match stored.drosophila.effective_mode() {
+            ConnectionMode::SystemProxy => NodeMode::SystemProxy,
+            ConnectionMode::Proxy => NodeMode::Proxy,
+            ConnectionMode::Tun => NodeMode::Tun,
         };
         if mode == NodeMode::Tun && is_flatpak() {
-            bail!(
-                "Flatpak cannot create a host TUN interface. Enable the SOCKS Proxy mode in Settings."
-            );
+            bail!("Flatpak cannot create a host TUN interface. Select System Proxy in Settings.");
         }
 
-        stored.yggdrasil.admin_listen = "none".to_owned();
+        "none".clone_into(&mut stored.yggdrasil.admin_listen);
         stored.yggdrasil.if_name = if mode == NodeMode::Tun {
             "auto".to_owned()
         } else {
@@ -339,6 +377,7 @@ impl RunningNode {
         }
 
         let result = match mode {
+            #[cfg(feature = "tun")]
             NodeMode::Tun => {
                 let tun_mtu = stored.yggdrasil.if_mtu.min(mtu).min(65_535) as u16;
                 TunAdapter::new(
@@ -351,27 +390,20 @@ impl RunningNode {
                     &stored.yggdrasil.if_dns_servers,
                 )
                 .await
-                .map(|tun| (Some(tun), None))
+                .map(|tun| StartedTransports {
+                    tun: Some(tun),
+                    proxy: None,
+                    system_proxy: None,
+                })
                 .map_err(anyhow::Error::msg)
             }
-            NodeMode::Proxy => {
-                let listen = stored
-                    .drosophila
-                    .proxy_listen
-                    .parse::<SocketAddr>()
-                    .context("invalid SOCKS listen address")?;
-                let dns =
-                    parse_dns_server(&stored.drosophila.dns_server, stored.drosophila.dns_port)?;
-                let ipv6 = address
-                    .parse::<Ipv6Addr>()
-                    .context("Yggdrasil-ng returned an invalid IPv6 address")?;
-                UserspaceProxy::start(rwc, ipv6, mtu as usize, listen, dns)
-                    .await
-                    .map(|proxy| (None, Some(proxy)))
-            }
+            #[cfg(not(feature = "tun"))]
+            NodeMode::Tun => Err(anyhow!("this build does not include TUN support")),
+            NodeMode::SystemProxy => start_proxy(rwc, &address, mtu, &stored, true).await,
+            NodeMode::Proxy => start_proxy(rwc, &address, mtu, &stored, false).await,
         };
 
-        let (tun, proxy) = match result {
+        let transports = match result {
             Ok(value) => value,
             Err(error) => {
                 core.close_multicast().await;
@@ -382,18 +414,22 @@ impl RunningNode {
 
         Ok(Self {
             core,
-            tun,
-            proxy,
+            #[cfg(feature = "tun")]
+            tun: transports.tun,
+            proxy: transports.proxy,
+            system_proxy: transports.system_proxy,
             address,
             subnet,
             mode,
         })
     }
 
+    #[cfg(feature = "tun")]
     pub(crate) fn address(&self) -> &str {
         &self.address
     }
 
+    #[cfg(feature = "tun")]
     pub(crate) fn subnet(&self) -> &str {
         &self.subnet
     }
@@ -416,13 +452,63 @@ impl RunningNode {
     }
 
     pub(crate) async fn close(mut self) {
+        if let Some(system_proxy) = self.system_proxy.take() {
+            system_proxy.close();
+        }
         if let Some(proxy) = self.proxy.take() {
             proxy.close().await;
         }
         self.core.close_multicast().await;
         let _ = self.core.close().await;
+        #[cfg(feature = "tun")]
         if let Some(tun) = self.tun.take() {
             tun.close().await;
+        }
+    }
+}
+
+async fn start_proxy(
+    rwc: Arc<ReadWriteCloser>,
+    address: &str,
+    mtu: u64,
+    stored: &StoredConfig,
+    configure_system: bool,
+) -> Result<StartedTransports> {
+    let listen = stored
+        .drosophila
+        .proxy_listen
+        .parse::<SocketAddr>()
+        .context("invalid proxy listen address")?;
+    let dns = parse_dns_server(&stored.drosophila.dns_server, stored.drosophila.dns_port)?;
+    let ipv6 = address
+        .parse::<Ipv6Addr>()
+        .context("Yggdrasil-ng returned an invalid IPv6 address")?;
+    let proxy = UserspaceProxy::start(
+        rwc,
+        ipv6,
+        usize::try_from(mtu).context("Yggdrasil MTU does not fit this platform")?,
+        listen,
+        dns,
+    )
+    .await?;
+    if !configure_system {
+        return Ok(StartedTransports {
+            #[cfg(feature = "tun")]
+            tun: None,
+            proxy: Some(proxy),
+            system_proxy: None,
+        });
+    }
+    match SystemProxy::enable(listen) {
+        Ok(system_proxy) => Ok(StartedTransports {
+            #[cfg(feature = "tun")]
+            tun: None,
+            proxy: Some(proxy),
+            system_proxy: Some(system_proxy),
+        }),
+        Err(error) => {
+            proxy.close().await;
+            Err(error)
         }
     }
 }

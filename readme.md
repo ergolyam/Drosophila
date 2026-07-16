@@ -8,7 +8,8 @@ Drosophila is a desktop application for running, configuring and monitoring a [Y
 - View the IPv6 address, subnet and peer status
 - Add, remove and discover peers
 - Edit or generate a private key
-- Use a local SOCKS5 proxy in Flatpak
+- Use the desktop system proxy on Linux and Windows
+- Run a local HTTP/SOCKS5 proxy without changing desktop settings
 - Use a TUN interface on Linux and Windows
 - Request TUN privileges on demand through PolicyKit or UAC while keeping the GUI unprivileged
 
@@ -19,7 +20,7 @@ flatpak remote-add --user Drosophila https://ergolyam.github.io/Drosophila/ergol
 flatpak install --user Drosophila io.github.ergolyam.Drosophila
 ```
 
-The SOCKS5 proxy listens on `127.0.0.1:1080` by default.
+Flatpak defaults to System Proxy mode and also offers a plain Proxy mode that leaves desktop settings unchanged. It does not include any TUN code or privileged worker. The local HTTP/SOCKS5 proxy listens on `127.0.0.1:1080` by default, and System Proxy restores the previous desktop settings when the node stops.
 
 ## Windows
 

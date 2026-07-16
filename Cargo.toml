@@ -8,6 +8,10 @@ license = "GPL-3.0-or-later"
 repository = "https://github.com/ergolyam/Drosophila"
 build = "build.rs"
 
+[features]
+default = ["tun"]
+tun = ["dep:capctl", "dep:nix", "dep:runas", "yggdrasil/tun"]
+
 [dependencies]
 anyhow = "1"
 directories = "6"
@@ -27,14 +31,15 @@ toml = "1"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 url = "2"
-yggdrasil = { git = "https://github.com/Revertron/Yggdrasil-ng.git", rev = "3ac41c1977d6b309a3901aaf2e5db8fe22f27475", default-features = false, features = ["tun", "ws", "quic"] }
+yggdrasil = { git = "https://github.com/Revertron/Yggdrasil-ng.git", rev = "3ac41c1977d6b309a3901aaf2e5db8fe22f27475", default-features = false, features = ["ws", "quic"] }
 
 [target.'cfg(target_os = "linux")'.dependencies]
-capctl = "0.2"
-nix = { version = "0.30", default-features = false, features = ["user"] }
+capctl = { version = "0.2", optional = true }
+nix = { version = "0.30", default-features = false, features = ["user"], optional = true }
 
 [target.'cfg(windows)'.dependencies]
-runas = "1.2"
+runas = { version = "1.2", optional = true }
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Networking_WinInet"] }
 
 [target.'cfg(windows)'.build-dependencies]
 winresource = "0.1"

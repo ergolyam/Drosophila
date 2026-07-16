@@ -7,7 +7,7 @@
   <summary>Graphical interface for Yggdrasil-ng</summary>
   <description>
     <p>Run, configure and monitor a Yggdrasil-ng node.</p>
-    <p>Use a local SOCKS5 proxy with Flatpak or a TUN interface with a native build.</p>
+    <p>Use the desktop system proxy, a standalone local proxy, or a TUN interface in native builds.</p>
   </description>
   <content_rating type="oars-1.1">
     <content_attribute id="violence-fantasy">none</content_attribute>

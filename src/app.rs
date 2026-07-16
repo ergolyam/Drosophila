@@ -11,14 +11,18 @@ use gtk::glib::{self, ControlFlow};
 use url::Url;
 
 use crate::backend::{BackendEvent, BackendHandle, NodeMode};
-use crate::config::{StoredConfig, config_path, load_or_create, save};
+use crate::config::{ConnectionMode, StoredConfig, config_path, load_or_create, save};
 use crate::discovery::DiscoveredPeer;
+use crate::system_proxy;
 
 const APP_ID: &str = "io.github.ergolyam.Drosophila";
 const PROTOCOLS: [&str; 5] = ["tcp", "tls", "ws", "wss", "quic"];
 
 pub fn run(arguments: &[String]) -> glib::ExitCode {
     configure_windows_runtime();
+    if let Err(error) = system_proxy::recover_stale() {
+        tracing::warn!(%error, "failed to recover stale system proxy settings");
+    }
     let application = adw::Application::builder().application_id(APP_ID).build();
     let (backend, events) = BackendHandle::spawn();
     let events = Rc::new(RefCell::new(Some(events)));
@@ -86,10 +90,12 @@ struct Ui {
     subnet_row: adw::ActionRow,
     private_key_row: adw::EntryRow,
     private_key_regen: gtk::Button,
-    socks_card: adw::ExpanderRow,
-    socks_listen_row: adw::EntryRow,
-    socks_dns_ip_row: adw::EntryRow,
-    socks_dns_port_row: adw::EntryRow,
+    connection_group: adw::PreferencesGroup,
+    mode_row: adw::ComboRow,
+    proxy_card: adw::ExpanderRow,
+    proxy_listen_row: adw::EntryRow,
+    proxy_dns_ip_row: adw::EntryRow,
+    proxy_dns_port_row: adw::EntryRow,
     peers_box: gtk::ListBox,
     peers_group: adw::PreferencesGroup,
     add_peer_button: gtk::MenuButton,
@@ -100,7 +106,7 @@ struct Ui {
     running: Cell<bool>,
     transitioning: Cell<bool>,
     suppress_ygg_switch: Cell<bool>,
-    suppress_proxy_switch: Cell<bool>,
+    suppress_mode_change: Cell<bool>,
     peer_icons: RefCell<HashMap<String, (gtk::Image, String)>>,
     peer_delete_buttons: RefCell<Vec<gtk::Button>>,
     discovery: RefCell<Option<Rc<DiscoveryDialog>>>,
@@ -162,10 +168,12 @@ impl Ui {
             subnet_row: object(&builder, "subnet_row")?,
             private_key_row,
             private_key_regen: object(&builder, "private_key_regen_icon")?,
-            socks_card: object(&builder, "socks_card")?,
-            socks_listen_row: object(&builder, "socks_listen_row")?,
-            socks_dns_ip_row: object(&builder, "socks_dns_ip_row")?,
-            socks_dns_port_row: object(&builder, "socks_dns_port_row")?,
+            connection_group: object(&builder, "connection_group")?,
+            mode_row: object(&builder, "mode_row")?,
+            proxy_card: object(&builder, "proxy_card")?,
+            proxy_listen_row: object(&builder, "proxy_listen_row")?,
+            proxy_dns_ip_row: object(&builder, "proxy_dns_ip_row")?,
+            proxy_dns_port_row: object(&builder, "proxy_dns_port_row")?,
             peers_box: object(&builder, "peers_box")?,
             peers_group: object(&builder, "peers_group")?,
             add_peer_button: object(&builder, "add_peer_btn")?,
@@ -176,7 +184,7 @@ impl Ui {
             running: Cell::new(false),
             transitioning: Cell::new(false),
             suppress_ygg_switch: Cell::new(false),
-            suppress_proxy_switch: Cell::new(false),
+            suppress_mode_change: Cell::new(false),
             peer_icons: RefCell::new(HashMap::new()),
             peer_delete_buttons: RefCell::new(Vec::new()),
             discovery: RefCell::new(None),
@@ -198,13 +206,28 @@ impl Ui {
             .set_text(&self.config.borrow().yggdrasil.private_key);
 
         let gui = self.config.borrow().drosophila.clone();
-        self.set_proxy_switch(gui.proxy_enabled);
-        self.socks_listen_row.set_text(&gui.proxy_listen);
-        self.socks_dns_ip_row.set_text(&gui.dns_server);
-        self.socks_dns_port_row.set_text(&gui.dns_port.to_string());
+        #[cfg(feature = "tun")]
+        self.mode_row.set_model(Some(&gtk::StringList::new(&[
+            "TUN",
+            "Proxy",
+            "System Proxy",
+        ])));
+        #[cfg(not(feature = "tun"))]
+        self.mode_row
+            .set_model(Some(&gtk::StringList::new(&["Proxy", "System Proxy"])));
+        self.connection_group.set_description(Some(if cfg!(feature = "tun") {
+            "System Proxy updates desktop settings. Proxy only exposes a local endpoint. TUN routes applications that do not use proxy settings."
+        } else {
+            "System Proxy updates desktop settings. Proxy only exposes a local endpoint."
+        }));
+        self.set_connection_mode(gui.effective_mode());
+        self.proxy_listen_row.set_text(&gui.proxy_listen);
+        self.proxy_dns_ip_row.set_text(&gui.dns_server);
+        self.proxy_dns_port_row.set_text(&gui.dns_port.to_string());
+        self.update_proxy_card();
         self.rebuild_peers();
         self.suppress_ygg_switch.set(false);
-        self.suppress_proxy_switch.set(false);
+        self.suppress_mode_change.set(false);
     }
 
     fn connect_signals(self: &Rc<Self>, builder: &gtk::Builder) {
@@ -216,11 +239,11 @@ impl Ui {
                 }
             }
         });
-        self.socks_card.connect_enable_expansion_notify({
+        self.mode_row.connect_selected_notify({
             let weak = Rc::downgrade(self);
             move |row| {
                 if let Some(ui) = weak.upgrade() {
-                    ui.on_proxy_switch(row.enables_expansion());
+                    ui.on_connection_mode_changed(row.selected());
                 }
             }
         });
@@ -244,25 +267,30 @@ impl Ui {
                 }
             }
         });
-        self.socks_listen_row.connect_changed({
+        self.proxy_listen_row.connect_changed({
             let weak = Rc::downgrade(self);
             move |row| {
                 if let Some(ui) = weak.upgrade() {
-                    ui.config.borrow_mut().drosophila.proxy_listen = row.text().trim().to_owned();
+                    row.text()
+                        .trim()
+                        .clone_into(&mut ui.config.borrow_mut().drosophila.proxy_listen);
+                    ui.update_proxy_card();
                     ui.persist_config();
                 }
             }
         });
-        self.socks_dns_ip_row.connect_changed({
+        self.proxy_dns_ip_row.connect_changed({
             let weak = Rc::downgrade(self);
             move |row| {
                 if let Some(ui) = weak.upgrade() {
-                    ui.config.borrow_mut().drosophila.dns_server = row.text().trim().to_owned();
+                    row.text()
+                        .trim()
+                        .clone_into(&mut ui.config.borrow_mut().drosophila.dns_server);
                     ui.persist_config();
                 }
             }
         });
-        self.socks_dns_port_row.connect_changed({
+        self.proxy_dns_port_row.connect_changed({
             let weak = Rc::downgrade(self);
             move |row| {
                 let Some(ui) = weak.upgrade() else { return };
@@ -350,17 +378,27 @@ impl Ui {
         }
     }
 
-    fn on_proxy_switch(&self, enabled: bool) {
-        if self.suppress_proxy_switch.replace(false) {
+    fn on_connection_mode_changed(&self, selected: u32) {
+        if self.suppress_mode_change.replace(false) {
             return;
         }
-        self.config.borrow_mut().drosophila.proxy_enabled = enabled;
-        self.socks_card
-            .set_subtitle(if enabled { "Enabled" } else { "Disabled" });
-        self.socks_card.set_expanded(enabled);
+        #[cfg(feature = "tun")]
+        let mode = match selected {
+            0 => ConnectionMode::Tun,
+            1 => ConnectionMode::Proxy,
+            _ => ConnectionMode::SystemProxy,
+        };
+        #[cfg(not(feature = "tun"))]
+        let mode = if selected == 0 {
+            ConnectionMode::Proxy
+        } else {
+            ConnectionMode::SystemProxy
+        };
+        self.config.borrow_mut().drosophila.mode = mode;
+        self.update_proxy_card();
         self.persist_config();
         if self.running.get() {
-            self.toast("Proxy mode will be applied after restarting Yggdrasil");
+            self.toast("Connection mode will be applied after restarting Yggdrasil");
         }
     }
 
@@ -370,7 +408,7 @@ impl Ui {
         if valid {
             self.private_key_row.remove_css_class("error");
             if self.config.borrow().yggdrasil.private_key != key {
-                self.config.borrow_mut().yggdrasil.private_key = key.to_owned();
+                key.clone_into(&mut self.config.borrow_mut().yggdrasil.private_key);
                 self.persist_config();
             }
         } else {
@@ -416,7 +454,8 @@ impl Ui {
                 self.ygg_card.set_expanded(true);
                 self.ygg_card.set_subtitle(match mode {
                     NodeMode::Tun => "Running",
-                    NodeMode::Proxy => "SOCKS proxy running",
+                    NodeMode::SystemProxy => "System proxy running",
+                    NodeMode::Proxy => "Proxy running",
                 });
                 self.address_row.set_subtitle(&address);
                 self.subnet_row.set_subtitle(&subnet);
@@ -431,10 +470,10 @@ impl Ui {
             }
             BackendEvent::PeerStatus(status) => self.apply_peer_status(&status),
             BackendEvent::DiscoveryFinished { id, result } => {
-                if let Some(dialog) = self.discovery.borrow().as_ref() {
-                    if dialog.id.get() == id {
-                        dialog.set_result(result);
-                    }
+                if let Some(dialog) = self.discovery.borrow().as_ref()
+                    && dialog.id.get() == id
+                {
+                    dialog.set_result(result);
                 }
             }
         }
@@ -459,19 +498,43 @@ impl Ui {
         }
     }
 
-    fn set_proxy_switch(&self, enabled: bool) {
-        if self.socks_card.enables_expansion() != enabled {
-            self.suppress_proxy_switch.set(true);
-            self.socks_card.set_enable_expansion(enabled);
+    fn set_connection_mode(&self, mode: ConnectionMode) {
+        #[cfg(feature = "tun")]
+        let selected = match mode {
+            ConnectionMode::Tun => 0,
+            ConnectionMode::Proxy => 1,
+            ConnectionMode::SystemProxy => 2,
+        };
+        #[cfg(not(feature = "tun"))]
+        let selected = match mode {
+            ConnectionMode::Proxy => 0,
+            ConnectionMode::SystemProxy | ConnectionMode::Tun => 1,
+        };
+        if self.mode_row.selected() != selected {
+            self.suppress_mode_change.set(true);
+            self.mode_row.set_selected(selected);
         }
-        self.socks_card.set_expanded(enabled);
-        self.socks_card
-            .set_subtitle(if enabled { "Enabled" } else { "Disabled" });
+    }
+
+    fn update_proxy_card(&self) {
+        let config = self.config.borrow();
+        let mode = config.drosophila.effective_mode();
+        self.proxy_card.set_visible(mode != ConnectionMode::Tun);
+        self.proxy_card.set_title(match mode {
+            ConnectionMode::SystemProxy => "System Proxy Details",
+            ConnectionMode::Proxy | ConnectionMode::Tun => "Proxy Details",
+        });
+        let listen = config.drosophila.proxy_listen.clone();
+        self.proxy_card
+            .set_subtitle(&format!("HTTP and SOCKS5 on {listen}"));
     }
 
     fn set_controls_sensitive(&self, sensitive: bool) {
         self.ygg_card.set_sensitive(sensitive);
         self.private_key_regen.set_sensitive(sensitive);
+        let connection_sensitive = sensitive && !self.running.get();
+        self.mode_row.set_sensitive(connection_sensitive);
+        self.proxy_card.set_sensitive(connection_sensitive);
         for button in self.peer_delete_buttons.borrow().iter() {
             button.set_sensitive(sensitive);
         }
@@ -605,7 +668,7 @@ impl Ui {
                 .iter()
                 .position(|value| *value == peer.protocol)
                 .unwrap_or_default();
-            protocol.set_selected(selected as u32);
+            protocol.set_selected(u32::try_from(selected).unwrap_or_default());
             domain.set_text(&format_endpoint(&peer.host, peer.port));
             if let Ok(url) = Url::parse(&peer.address) {
                 for (key, value) in url.query_pairs() {
@@ -782,14 +845,12 @@ impl DiscoveryDialog {
                 let Some(app) = dialog.app.upgrade() else {
                     return;
                 };
-                if response == "use" {
-                    if let Some(row) = dialog.list.selected_row() {
-                        if let Some(peer) =
-                            dialog.visible.borrow().get(row.index() as usize).cloned()
-                        {
-                            app.open_add_peer_dialog(Some(peer));
-                        }
-                    }
+                if response == "use"
+                    && let Some(row) = dialog.list.selected_row()
+                    && let Ok(index) = usize::try_from(row.index())
+                    && let Some(peer) = dialog.visible.borrow().get(index).cloned()
+                {
+                    app.open_add_peer_dialog(Some(peer));
                 }
                 *app.discovery.borrow_mut() = None;
             }

@@ -79,7 +79,7 @@ sudo install -Dm0644 \
 
 Run `/usr/local/bin/drosophila` as the desktop user. A running PolicyKit authentication agent and `pkexec` are required. Development builds at other paths still use `pkexec`'s standard action; the installed policy provides the application-specific prompt for `/usr/bin/drosophila` and `/usr/local/bin/drosophila`.
 
-Flatpak stays in SOCKS proxy mode because a sandboxed executable cannot be launched as a trusted host PolicyKit worker.
+Flatpak is built with `--no-default-features`, so the Yggdrasil TUN adapter, PolicyKit worker and Linux capability dependencies are omitted entirely. System Proxy is the default and uses direct dconf access to update the current user's GNOME proxy settings while the node is running. Plain Proxy mode exposes the same local HTTP/SOCKS5 endpoint without changing GNOME settings. System Proxy restores the previous settings on stop and recovers them on the next launch after an unclean exit.
 
 ## Flatpak build
 

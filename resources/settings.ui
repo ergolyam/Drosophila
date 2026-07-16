@@ -10,22 +10,53 @@
     <child>
       <object class="AdwClamp" id="settings_clamp">
         <child>
-          <object class="AdwPreferencesGroup" id="settings_group">
+          <object class="GtkBox">
+            <property name="orientation">vertical</property>
+            <property name="spacing">18</property>
+            <property name="margin-bottom">12</property>
 
             <child>
-              <object class="AdwEntryRow" id="private_key_row">
-                <property name="title">PrivateKey</property>
-                <property name="text"/>
-                <property name="hexpand">True</property>
+              <object class="AdwPreferencesGroup" id="connection_group">
+                <property name="title">Connection</property>
+                <property name="description">Choose how applications connect to Yggdrasil.</property>
 
-                <child type="suffix">
-                  <object class="GtkButton" id="private_key_regen_icon">
-                    <property name="css-classes">flat</property>
-                    <property name="tooltip-text">Regenerate</property>
-                    <property name="focus-on-click">False</property>
+                <child>
+                  <object class="AdwComboRow" id="mode_row">
+                    <property name="title">Connection Mode</property>
+                  </object>
+                </child>
+
+                <child>
+                  <object class="AdwExpanderRow" id="proxy_card">
+                    <property name="title">Proxy Details</property>
+                    <property name="subtitle">HTTP and SOCKS5 on 127.0.0.1:1080</property>
+                    <property name="expanded">False</property>
+
                     <child>
-                      <object class="GtkImage">
-                        <property name="icon-name">view-refresh-symbolic</property>
+                      <object class="GtkBox" id="proxy_box">
+                        <property name="orientation">vertical</property>
+                        <property name="spacing">6</property>
+
+                        <child>
+                          <object class="AdwEntryRow" id="proxy_listen_row">
+                            <property name="title">Listen Address</property>
+                            <property name="text">127.0.0.1:1080</property>
+                          </object>
+                        </child>
+
+                        <child>
+                          <object class="AdwEntryRow" id="proxy_dns_ip_row">
+                            <property name="title">Overlay DNS Server</property>
+                            <property name="text"/>
+                          </object>
+                        </child>
+
+                        <child>
+                          <object class="AdwEntryRow" id="proxy_dns_port_row">
+                            <property name="title">Overlay DNS Port</property>
+                            <property name="text">53</property>
+                          </object>
+                        </child>
                       </object>
                     </child>
                   </object>
@@ -34,40 +65,27 @@
             </child>
 
             <child>
-              <object class="AdwExpanderRow" id="socks_card">
-                <property name="title">SOCKS Proxy</property>
-                <property name="subtitle">Disabled</property>
-
-                <property name="show-enable-switch">True</property>
-                <property name="enable-expansion">False</property>
-                <property name="expanded">False</property>
+              <object class="AdwPreferencesGroup" id="identity_group">
+                <property name="title">Identity</property>
 
                 <child>
-                  <object class="GtkBox" id="socks_box">
-                    <property name="orientation">vertical</property>
-                    <property name="spacing">6</property>
+                  <object class="AdwEntryRow" id="private_key_row">
+                    <property name="title">Private Key</property>
+                    <property name="text"/>
+                    <property name="hexpand">True</property>
 
-                    <child>
-                      <object class="AdwEntryRow" id="socks_listen_row">
-                        <property name="title">Listen (IP:Port)</property>
-                        <property name="text">127.0.0.1:1080</property>
+                    <child type="suffix">
+                      <object class="GtkButton" id="private_key_regen_icon">
+                        <property name="css-classes">flat</property>
+                        <property name="tooltip-text">Regenerate</property>
+                        <property name="focus-on-click">False</property>
+                        <child>
+                          <object class="GtkImage">
+                            <property name="icon-name">view-refresh-symbolic</property>
+                          </object>
+                        </child>
                       </object>
                     </child>
-
-                    <child>
-                      <object class="AdwEntryRow" id="socks_dns_ip_row">
-                        <property name="title">DNS Server</property>
-                        <property name="text"/>
-                      </object>
-                    </child>
-
-                    <child>
-                      <object class="AdwEntryRow" id="socks_dns_port_row">
-                        <property name="title">DNS Port</property>
-                        <property name="text">53</property>
-                      </object>
-                    </child>
-
                   </object>
                 </child>
               </object>
@@ -77,8 +95,6 @@
               <object class="AdwPreferencesGroup" id="peers_group">
                 <property name="title">Peers</property>
                 <property name="description">No peers configured</property>
-                <property name="margin-top">12</property>
-                <property name="margin-bottom">12</property>
 
                 <child type="header-suffix">
                   <object class="GtkMenuButton" id="add_peer_btn">
@@ -125,7 +141,6 @@
                 </child>
               </object>
             </child>
-
           </object>
         </child>
       </object>

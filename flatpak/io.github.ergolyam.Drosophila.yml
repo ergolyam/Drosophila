@@ -9,6 +9,11 @@ finish-args:
   - --socket=fallback-x11
   - --share=ipc
   - --share=network
+  # Direct dconf access is required because the Settings portal is read-only.
+  - --filesystem=xdg-run/dconf
+  - --filesystem=~/.config/dconf:ro
+  - --talk-name=ca.desrt.dconf
+  - --env=DCONF_USER_CONFIG_DIR=.config/dconf
 
 sdk-extensions:
   - org.freedesktop.Sdk.Extension.rust-stable
@@ -22,7 +27,7 @@ modules:
   - name: drosophila
     buildsystem: simple
     build-commands:
-      - cargo --offline build --release --locked
+      - cargo --offline build --release --locked --no-default-features
       - install -Dm755 target/release/drosophila /app/bin/drosophila
       - install -Dm644 license /app/share/licenses/io.github.ergolyam.Drosophila/COPYING
       - install -Dm644 xdg/io.github.ergolyam.Drosophila.svg /app/share/icons/hicolor/scalable/apps/io.github.ergolyam.Drosophila.svg
