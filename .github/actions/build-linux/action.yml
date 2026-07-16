@@ -20,29 +20,51 @@ runs:
       with:
         path: source
 
-    - name: Install glibc dependencies
+    - name: Build glibc application
       if: inputs.libc-type == 'glibc'
-      shell: sh
-      run: |
-        apt-get update
-        apt-get install --yes --no-install-recommends libadwaita-1-dev
-
-    - name: Install musl dependencies
-      if: inputs.libc-type == 'musl'
-      shell: sh
-      run: apk add --no-cache libadwaita-dev
-
-    - name: Build application
-      working-directory: source
-      shell: sh
+      shell: bash
       env:
-        RUSTFLAGS: ${{ inputs.libc-type == 'musl' && '-C target-feature=-crt-static' || '' }}
-      run: cargo build --release --locked
+        PROJECT_NAME: ${{ inputs.project-name }}
+        ARCH_TYPE: ${{ inputs.arch-type }}
+      run: |
+        docker run --rm \
+          --volume "${GITHUB_WORKSPACE}/source:/source:ro" \
+          --volume "${GITHUB_WORKSPACE}:/out" \
+          --workdir /source \
+          --env PROJECT_NAME \
+          --env ARCH_TYPE \
+          docker.io/library/rust:1.97.0-slim-trixie \
+          bash -euxo pipefail -c '
+            apt-get update
+            DEBIAN_FRONTEND=noninteractive apt-get install --yes --no-install-recommends \
+              libadwaita-1-dev
+            CARGO_TARGET_DIR=/tmp/drosophila-target cargo build --release --locked
+            install -Dm0755 /tmp/drosophila-target/release/drosophila \
+              "/out/${PROJECT_NAME}-linux-glibc-${ARCH_TYPE}"
+          '
 
-    - name: Prepare binary
-      working-directory: source
-      shell: sh
-      run: install -Dm0755 target/release/drosophila ../${{ inputs.project-name }}-linux-${{ inputs.libc-type }}-${{ inputs.arch-type }}
+    - name: Build musl application
+      if: inputs.libc-type == 'musl'
+      shell: bash
+      env:
+        PROJECT_NAME: ${{ inputs.project-name }}
+        ARCH_TYPE: ${{ inputs.arch-type }}
+      run: |
+        docker run --rm \
+          --volume "${GITHUB_WORKSPACE}/source:/source:ro" \
+          --volume "${GITHUB_WORKSPACE}:/out" \
+          --workdir /source \
+          --env PROJECT_NAME \
+          --env ARCH_TYPE \
+          docker.io/library/rust:1.97.0-alpine3.24 \
+          sh -eux -c '
+            apk add --no-cache libadwaita-dev
+            RUSTFLAGS="-C target-feature=-crt-static" \
+              CARGO_TARGET_DIR=/tmp/drosophila-target \
+              cargo build --release --locked
+            install -Dm0755 /tmp/drosophila-target/release/drosophila \
+              "/out/${PROJECT_NAME}-linux-musl-${ARCH_TYPE}"
+          '
 
     - name: Upload Linux artifact
       uses: actions/upload-artifact@v7

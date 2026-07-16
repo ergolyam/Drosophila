@@ -42,8 +42,6 @@ jobs:
         arch: [ x86_64, aarch64 ]
         libc: [ glibc, musl ]
     runs-on: ${{ matrix.arch == 'aarch64' && 'ubuntu-24.04-arm' || 'ubuntu-latest' }}
-    container:
-      image: ${{ matrix.libc == 'musl' && 'docker.io/library/rust:1.97.0-alpine3.24' || 'docker.io/library/rust:1.97.0-slim-trixie' }}
 
     steps:
       - name: Checkout code
