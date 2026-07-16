@@ -138,14 +138,18 @@ impl Ui {
         let settings_page = stack.add_titled(&settings, Some("settings"), "Settings");
         settings_page.set_icon_name(Some("emblem-system-symbolic"));
         stack.set_visible_child(&main);
+        main.set_focusable(true);
         settings.set_focusable(true);
         stack.connect_visible_child_notify({
+            let main = main.clone();
             let settings = settings.clone();
             let private_key_row = private_key_row.clone();
             move |stack| {
                 if stack.visible_child_name().as_deref() == Some("settings") {
                     settings.grab_focus();
                     private_key_row.set_position(-1);
+                } else {
+                    main.grab_focus();
                 }
             }
         });
