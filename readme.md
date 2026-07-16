@@ -35,7 +35,7 @@ Download the Windows installer from the [releases page](https://github.com/ergol
 
 | Main page | Settings |
 |---|---|
-| ![Main page screenshot](.github/docs/main.png) | ![Settings screenshot](.github/docs/settings.png) |
+| ![Main page screenshot](.github/xdg/main.png) | ![Settings screenshot](.github/xdg/settings.png) |
 
 ## License
 
