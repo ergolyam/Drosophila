@@ -21,7 +21,7 @@ pub struct GuiConfig {
 impl Default for GuiConfig {
     fn default() -> Self {
         Self {
-            // A sandboxed Flatpak cannot acquire CAP_NET_ADMIN for a host TUN.
+            // A sandboxed Flatpak cannot launch the host-side PolicyKit worker.
             // Start new Flatpak installs in the fully userspace mode instead.
             proxy_enabled: is_flatpak(),
             proxy_listen: "127.0.0.1:1080".to_owned(),

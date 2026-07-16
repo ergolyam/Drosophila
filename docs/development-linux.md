@@ -66,31 +66,20 @@ sudo apt install libadwaita-1-0
 
 ## TUN access
 
-Install the tool that assigns the capability:
+TUN mode uses PolicyKit on demand. The GTK application remains unprivileged; when TUN is enabled it launches the same executable in a restricted worker mode through `pkexec`. After authorization, the worker drops the root user ID and every capability except `CAP_NET_ADMIN`. No file capability is applied to the executable.
 
-```bash
-# Debian
-sudo apt install libcap2-bin
-
-# Fedora
-sudo dnf install libcap
-
-# Arch Linux
-sudo pacman -S libcap
-
-# Alpine Linux
-sudo apk add libcap-utils
-```
-
-Install the binary before assigning the capability. Do not run the capability-enabled copy from `/tmp`.
+Install the binary and its PolicyKit action:
 
 ```bash
 sudo install -Dm0755 /path/to/drosophila /usr/local/bin/drosophila
-sudo setcap cap_net_admin=ep /usr/local/bin/drosophila
-getcap /usr/local/bin/drosophila
+sudo install -Dm0644 \
+  xdg/io.github.ergolyam.Drosophila.policy \
+  /usr/share/polkit-1/actions/io.github.ergolyam.Drosophila.policy
 ```
 
-Run `/usr/local/bin/drosophila`.
+Run `/usr/local/bin/drosophila` as the desktop user. A running PolicyKit authentication agent and `pkexec` are required. Development builds at other paths still use `pkexec`'s standard action; the installed policy provides the application-specific prompt for `/usr/bin/drosophila` and `/usr/local/bin/drosophila`.
+
+Flatpak stays in SOCKS proxy mode because a sandboxed executable cannot be launched as a trusted host PolicyKit worker.
 
 ## Flatpak build
 

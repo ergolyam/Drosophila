@@ -10,6 +10,7 @@ Drosophila is a desktop application for running, configuring and monitoring a [Y
 - Edit or generate a private key
 - Use a local SOCKS5 proxy in Flatpak
 - Use a TUN interface on Linux and Windows
+- Request TUN privileges on demand through PolicyKit or UAC while keeping the GUI unprivileged
 
 ## Flatpak
 

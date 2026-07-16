@@ -2,6 +2,7 @@ mod app;
 mod backend;
 mod config;
 mod discovery;
+mod privileged;
 mod proxy;
 
 use tracing_subscriber::EnvFilter;
@@ -25,6 +26,22 @@ fn main() -> gtk::glib::ExitCode {
         .with_target(false)
         .try_init()
         .ok();
+
+    if let Some(worker) = privileged::WorkerArguments::parse(&arguments) {
+        return match worker.and_then(privileged::run_worker) {
+            Ok(()) => gtk::glib::ExitCode::SUCCESS,
+            Err(error) => {
+                tracing::error!(%error, "privileged TUN worker failed");
+                gtk::glib::ExitCode::FAILURE
+            }
+        };
+    }
+
+    #[cfg(target_os = "linux")]
+    if std::env::var_os("PKEXEC_UID").is_some() {
+        tracing::error!("refusing to start the graphical application through pkexec");
+        return gtk::glib::ExitCode::FAILURE;
+    }
 
     app::run(&arguments)
 }

@@ -13,6 +13,7 @@ use yggdrasil::tun::TunAdapter;
 
 use crate::config::{StoredConfig, is_flatpak};
 use crate::discovery::{DiscoveredPeer, discover_peers};
+use crate::privileged::{PrivilegedNode, RemoteEnvelope, RemoteEvent, WorkerEvent};
 use crate::proxy::UserspaceProxy;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -99,7 +100,9 @@ async fn backend_loop(
     mut commands: mpsc::UnboundedReceiver<BackendCommand>,
     events: std_mpsc::Sender<BackendEvent>,
 ) {
-    let mut node: Option<RunningNode> = None;
+    let mut node: Option<ActiveNode> = None;
+    let (remote_tx, mut remote_rx) = mpsc::unbounded_channel::<RemoteEnvelope>();
+    let mut next_remote_session = 0_u64;
     let mut status_timer = tokio::time::interval(Duration::from_secs(1));
     status_timer.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
 
@@ -107,67 +110,23 @@ async fn backend_loop(
         tokio::select! {
             command = commands.recv() => {
                 let Some(command) = command else { break };
-                match command {
-                    BackendCommand::Start(config) => {
-                        if let Some(current) = node.take() {
-                            current.close().await;
-                        }
-                        let _ = events.send(BackendEvent::Starting);
-                        match RunningNode::start(*config).await {
-                            Ok(started) => {
-                                let _ = events.send(BackendEvent::Started {
-                                    address: started.address.clone(),
-                                    subnet: started.subnet.clone(),
-                                    mode: started.mode,
-                                });
-                                node = Some(started);
-                            }
-                            Err(error) => {
-                                tracing::error!(%error, "failed to start Yggdrasil-ng");
-                                let _ = events.send(BackendEvent::Failed(format!("{error:#}")));
-                            }
-                        }
-                    }
-                    BackendCommand::Stop => {
-                        if let Some(current) = node.take() {
-                            current.close().await;
-                        }
-                        let _ = events.send(BackendEvent::Stopped);
-                    }
-                    BackendCommand::AddPeer(peer) => {
-                        if let Some(current) = &node {
-                            if let Err(error) = current.core.add_peer(&peer).await {
-                                let _ = events.send(BackendEvent::Failed(format!("Failed to add peer: {error}")));
-                            }
-                        }
-                    }
-                    BackendCommand::RemovePeer(peer) => {
-                        if let Some(current) = &node {
-                            if let Err(error) = current.core.remove_peer(&peer).await {
-                                let _ = events.send(BackendEvent::Failed(format!("Failed to remove peer: {error}")));
-                            }
-                        }
-                    }
-                    BackendCommand::Discover { id, protocols } => {
-                        let event_sender = events.clone();
-                        tokio::spawn(async move {
-                            let result = discover_peers(&protocols).await.map_err(|error| format!("{error:#}"));
-                            let _ = event_sender.send(BackendEvent::DiscoveryFinished { id, result });
-                        });
-                    }
-                    BackendCommand::Shutdown => break,
+                if !handle_command(
+                    command,
+                    &mut node,
+                    &mut next_remote_session,
+                    &remote_tx,
+                    &events,
+                ).await {
+                    break;
                 }
             }
-            _ = status_timer.tick(), if node.is_some() => {
-                if let Some(current) = &node {
-                    let statuses = current
-                        .core
-                        .get_peers()
-                        .await
-                        .into_iter()
-                        .map(|peer| (without_query(&peer.uri).to_owned(), peer.up))
-                        .collect();
-                    let _ = events.send(BackendEvent::PeerStatus(statuses));
+            remote = remote_rx.recv() => {
+                let Some(remote) = remote else { continue };
+                handle_remote_event(remote, &mut node, &events);
+            }
+            _ = status_timer.tick(), if matches!(node, Some(ActiveNode::Local(_))) => {
+                if let Some(ActiveNode::Local(current)) = &node {
+                    let _ = events.send(BackendEvent::PeerStatus(current.peer_status().await));
                 }
             }
         }
@@ -178,7 +137,160 @@ async fn backend_loop(
     }
 }
 
-struct RunningNode {
+async fn handle_command(
+    command: BackendCommand,
+    node: &mut Option<ActiveNode>,
+    next_remote_session: &mut u64,
+    remote_tx: &mpsc::UnboundedSender<RemoteEnvelope>,
+    events: &std_mpsc::Sender<BackendEvent>,
+) -> bool {
+    match command {
+        BackendCommand::Start(config) => {
+            if let Some(current) = node.take() {
+                current.close().await;
+            }
+            let _ = events.send(BackendEvent::Starting);
+            *node = start_node(*config, next_remote_session, remote_tx, events).await;
+        }
+        BackendCommand::Stop => {
+            if let Some(current) = node.take() {
+                current.close().await;
+            }
+            let _ = events.send(BackendEvent::Stopped);
+        }
+        BackendCommand::AddPeer(peer) => {
+            if let Some(current) = node {
+                match current {
+                    ActiveNode::Local(current) => {
+                        if let Err(error) = current.add_peer(&peer).await {
+                            let _ = events
+                                .send(BackendEvent::Failed(format!("Failed to add peer: {error}")));
+                        }
+                    }
+                    ActiveNode::Privileged { node, .. } => node.add_peer(peer),
+                }
+            }
+        }
+        BackendCommand::RemovePeer(peer) => {
+            if let Some(current) = node {
+                match current {
+                    ActiveNode::Local(current) => {
+                        if let Err(error) = current.remove_peer(&peer).await {
+                            let _ = events.send(BackendEvent::Failed(format!(
+                                "Failed to remove peer: {error}"
+                            )));
+                        }
+                    }
+                    ActiveNode::Privileged { node, .. } => node.remove_peer(peer),
+                }
+            }
+        }
+        BackendCommand::Discover { id, protocols } => {
+            let event_sender = events.clone();
+            tokio::spawn(async move {
+                let result = discover_peers(&protocols)
+                    .await
+                    .map_err(|error| format!("{error:#}"));
+                let _ = event_sender.send(BackendEvent::DiscoveryFinished { id, result });
+            });
+        }
+        BackendCommand::Shutdown => return false,
+    }
+    true
+}
+
+async fn start_node(
+    config: StoredConfig,
+    next_remote_session: &mut u64,
+    remote_tx: &mpsc::UnboundedSender<RemoteEnvelope>,
+    events: &std_mpsc::Sender<BackendEvent>,
+) -> Option<ActiveNode> {
+    if config.drosophila.proxy_enabled {
+        match RunningNode::start(config).await {
+            Ok(started) => {
+                let _ = events.send(BackendEvent::Started {
+                    address: started.address.clone(),
+                    subnet: started.subnet.clone(),
+                    mode: started.mode,
+                });
+                Some(ActiveNode::Local(started))
+            }
+            Err(error) => {
+                tracing::error!(%error, "failed to start Yggdrasil-ng");
+                let _ = events.send(BackendEvent::Failed(format!("{error:#}")));
+                None
+            }
+        }
+    } else {
+        *next_remote_session = next_remote_session.wrapping_add(1);
+        let session = *next_remote_session;
+        match PrivilegedNode::launch(config, session, remote_tx.clone()).await {
+            Ok(started) => Some(ActiveNode::Privileged {
+                session,
+                node: started,
+            }),
+            Err(error) => {
+                tracing::error!(%error, "failed to authorize the TUN worker");
+                let _ = events.send(BackendEvent::Failed(format!("{error:#}")));
+                None
+            }
+        }
+    }
+}
+
+fn handle_remote_event(
+    remote: RemoteEnvelope,
+    node: &mut Option<ActiveNode>,
+    events: &std_mpsc::Sender<BackendEvent>,
+) {
+    let matching_session = matches!(
+        node,
+        Some(ActiveNode::Privileged { session, .. }) if *session == remote.session
+    );
+    if !matching_session {
+        return;
+    }
+    match remote.event {
+        RemoteEvent::Worker(WorkerEvent::Started { address, subnet }) => {
+            let _ = events.send(BackendEvent::Started {
+                address,
+                subnet,
+                mode: NodeMode::Tun,
+            });
+        }
+        RemoteEvent::Worker(
+            WorkerEvent::StartFailed { message } | WorkerEvent::OperationFailed { message },
+        ) => {
+            let _ = events.send(BackendEvent::Failed(message));
+        }
+        RemoteEvent::Worker(WorkerEvent::PeerStatus { statuses }) => {
+            let _ = events.send(BackendEvent::PeerStatus(statuses));
+        }
+        RemoteEvent::Disconnected { error } => {
+            *node = None;
+            if let Some(error) = error {
+                let _ = events.send(BackendEvent::Stopped);
+                let _ = events.send(BackendEvent::Failed(error));
+            }
+        }
+    }
+}
+
+enum ActiveNode {
+    Local(RunningNode),
+    Privileged { session: u64, node: PrivilegedNode },
+}
+
+impl ActiveNode {
+    async fn close(self) {
+        match self {
+            Self::Local(node) => node.close().await,
+            Self::Privileged { node, .. } => node.close().await,
+        }
+    }
+}
+
+pub(crate) struct RunningNode {
     core: Arc<Core>,
     tun: Option<TunAdapter>,
     proxy: Option<UserspaceProxy>,
@@ -188,7 +300,7 @@ struct RunningNode {
 }
 
 impl RunningNode {
-    async fn start(mut stored: StoredConfig) -> Result<Self> {
+    pub(crate) async fn start(mut stored: StoredConfig) -> Result<Self> {
         let mode = if stored.drosophila.proxy_enabled {
             NodeMode::Proxy
         } else {
@@ -196,7 +308,7 @@ impl RunningNode {
         };
         if mode == NodeMode::Tun && is_flatpak() {
             bail!(
-                "Flatpak cannot create a host TUN interface without CAP_NET_ADMIN. Enable the SOCKS Proxy mode in Settings."
+                "Flatpak cannot create a host TUN interface. Enable the SOCKS Proxy mode in Settings."
             );
         }
 
@@ -278,7 +390,32 @@ impl RunningNode {
         })
     }
 
-    async fn close(mut self) {
+    pub(crate) fn address(&self) -> &str {
+        &self.address
+    }
+
+    pub(crate) fn subnet(&self) -> &str {
+        &self.subnet
+    }
+
+    pub(crate) async fn add_peer(&self, peer: &str) -> Result<(), String> {
+        self.core.add_peer(peer).await
+    }
+
+    pub(crate) async fn remove_peer(&self, peer: &str) -> Result<(), String> {
+        self.core.remove_peer(peer).await
+    }
+
+    pub(crate) async fn peer_status(&self) -> HashMap<String, bool> {
+        self.core
+            .get_peers()
+            .await
+            .into_iter()
+            .map(|peer| (without_query(&peer.uri).to_owned(), peer.up))
+            .collect()
+    }
+
+    pub(crate) async fn close(mut self) {
         if let Some(proxy) = self.proxy.take() {
             proxy.close().await;
         }
