@@ -6,7 +6,7 @@
   <name>Drosophila</name>
   <summary>Graphical interface for Yggdrasil-ng</summary>
   <description>
-    <p>Run, configure and monitor a Yggdrasil-ng node.</p>
+    <p>Drosophila is a desktop application for running, configuring and monitoring a Yggdrasil-ng node.</p>
     <p>Use the desktop system proxy, a standalone local proxy, or a TUN interface in native builds.</p>
   </description>
   <content_rating type="oars-1.1">
@@ -32,10 +32,10 @@
   <provides><binary>drosophila</binary></provides>
   <screenshots>
     <screenshot type="default">
-      <image>https://github.com/ergolyam/Drosophila/raw/9d997a50bdff4311dbb673e41599fdfb2e63e18c/.github/xdg/main.png</image>
+      <image>https://github.com/ergolyam/Drosophila/raw/9d997a50bdff4311dbb673e41599fdfb2e63e18c/xdg/main.png</image>
     </screenshot>
     <screenshot>
-      <image>https://github.com/ergolyam/Drosophila/raw/9d997a50bdff4311dbb673e41599fdfb2e63e18c/.github/xdg/settings.png</image>
+      <image>https://github.com/ergolyam/Drosophila/raw/9d997a50bdff4311dbb673e41599fdfb2e63e18c/xdg/settings.png</image>
     </screenshot>
   </screenshots>
   <developer id="io.github.ergolyam">
