@@ -39,7 +39,7 @@ nix = { version = "0.30", default-features = false, features = ["user"], optiona
 
 [target.'cfg(windows)'.dependencies]
 runas = { version = "1.2", optional = true }
-windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Networking_WinInet"] }
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Networking_WinInet", "Win32_System_Console"] }
 
 [target.'cfg(windows)'.build-dependencies]
 winresource = "0.1"

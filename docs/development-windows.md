@@ -26,4 +26,6 @@ Download [Wintun 0.14.1](https://www.wintun.net/), then copy `wintun/bin/amd64/w
 
 Native builds can select TUN, System Proxy or plain Proxy in Settings. System Proxy uses the current user's Windows internet settings and does not display a UAC prompt. Plain Proxy only exposes the local HTTP/SOCKS5 endpoint. Drosophila restores the previous system settings when System Proxy stops and recovers them on the next launch after an unclean exit.
 
+Drosophila does not open a console window when started normally from Explorer or a shortcut. When started directly from PowerShell or `cmd.exe`, it attaches to that terminal and writes logs there. Pass `--debug` to enable debug-level application logs; if no terminal is available, Drosophila creates a console window for them.
+
 The GTK application runs with the current user's token. Windows displays a UAC prompt only when TUN is enabled, then launches the same `Drosophila.exe` in a non-GUI worker mode for Wintun operations. Configuration is stored next to `Drosophila.exe`.
