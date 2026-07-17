@@ -1,46 +1,45 @@
-# Linux build
+# Linux development
 
 ## Native build
 
 Requirements: Rust 1.92 or newer, GTK 4.12 or newer and libadwaita 1.6 or newer.
 
-### Debian 13 or newer
+If the packaged Rust version is older than 1.92, install Rust from [rustup.rs](https://rustup.rs/). Debian 12 has unsupported GTK and libadwaita versions.
+
+### Install dependencies
+
+#### Debian 13 or newer
 
 ```bash
 sudo apt update
 sudo apt install --no-install-recommends ca-certificates curl gcc libadwaita-1-dev
 ```
 
-Install the toolchain from [rustup.rs](https://rustup.rs/) if the packaged version is older than 1.92. Debian 12 has GTK and libadwaita versions that are too old for this build.
-
-### Fedora
+#### Fedora
 
 ```bash
 sudo dnf install --setopt=install_weak_deps=False cargo libadwaita-devel
 ```
 
-### Arch Linux
+#### Arch Linux
 
 ```bash
 sudo pacman -S rust libadwaita pkgconf
 ```
 
-### Alpine Linux
+#### Alpine Linux
 
 ```bash
 sudo apk add cargo libadwaita-dev
 ```
 
-Build from the repository root:
+### Build from the repository root
 
 ```bash
 cargo build --release --locked
 ```
 
-The binary is `target/release/drosophila`.
-
-Run `cargo run --locked -- --debug` from a terminal to enable debug-level application and
-GTK/GLib logging.
+The binary is `target/release/drosophila`. For debug logs, run `cargo run --locked -- --debug`.
 
 ## Podman build
 
@@ -61,7 +60,7 @@ podman run --rm \
   '
 ```
 
-The binary is `/tmp/drosophila-linux-build/drosophila`. On Debian 13, install its runtime libraries with:
+The binary is `/tmp/drosophila-linux-build/drosophila`. On Debian 13, install the runtime library with:
 
 ```bash
 sudo apt install libadwaita-1-0
@@ -69,7 +68,7 @@ sudo apt install libadwaita-1-0
 
 ## TUN access
 
-TUN mode uses PolicyKit on demand. The GTK application remains unprivileged; when TUN is enabled it launches the same executable in a restricted worker mode through `pkexec`. After authorization, the worker drops the root user ID and every capability except `CAP_NET_ADMIN`. No file capability is applied to the executable.
+TUN uses `pkexec` on demand and requires a PolicyKit authentication agent. The GUI remains unprivileged; the worker retains only `CAP_NET_ADMIN`.
 
 Install the binary and its PolicyKit action:
 
@@ -80,11 +79,11 @@ sudo install -Dm0644 \
   /usr/share/polkit-1/actions/io.github.ergolyam.Drosophila.policy
 ```
 
-Run `/usr/local/bin/drosophila` as the desktop user. A running PolicyKit authentication agent and `pkexec` are required. Development builds at other paths still use `pkexec`'s standard action; the installed policy provides the application-specific prompt for `/usr/bin/drosophila` and `/usr/local/bin/drosophila`.
-
-Flatpak is built with `--no-default-features`, so the Yggdrasil TUN adapter, PolicyKit worker and Linux capability dependencies are omitted entirely. System Proxy is the default and uses direct dconf access to update the current user's GNOME proxy settings while the node is running. Plain Proxy mode exposes the same local HTTP/SOCKS5 endpoint without changing GNOME settings. System Proxy restores the previous settings on stop and recovers them on the next launch after an unclean exit.
+The policy provides the application-specific prompt for binaries installed to `/usr/bin` or `/usr/local/bin`.
 
 ## Flatpak build
+
+Flatpak builds without the `tun` feature.
 
 ```bash
 flatpak-builder --user --install --force-clean build-dir flatpak/io.github.ergolyam.Drosophila.yml
