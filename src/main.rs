@@ -40,6 +40,11 @@ fn main() -> gtk::glib::ExitCode {
         .try_init()
         .ok();
 
+    #[cfg(target_os = "linux")]
+    if debug {
+        gtk::glib::log_set_writer_func(gtk::glib::log_writer_standard_streams);
+    }
+
     #[cfg(windows)]
     if has_console {
         windows_console::redirect_glib_logs();

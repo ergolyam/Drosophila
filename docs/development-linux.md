@@ -39,6 +39,9 @@ cargo build --release --locked
 
 The binary is `target/release/drosophila`.
 
+Run `cargo run --locked -- --debug` from a terminal to enable debug-level application and
+GTK/GLib logging.
+
 ## Podman build
 
 ```bash
