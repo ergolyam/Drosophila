@@ -488,13 +488,17 @@ fn parse_http_request(mut bytes: Vec<u8>, header_end: usize) -> Result<HttpReque
     let mut forwarded_head = format!("{method} {origin} {version}\r\n").into_bytes();
     for line in lines {
         let name = line.split_once(':').map_or(line, |(name, _)| name);
-        if name.eq_ignore_ascii_case("proxy-connection") {
+        if name.eq_ignore_ascii_case("connection") || name.eq_ignore_ascii_case("proxy-connection")
+        {
             continue;
         }
         forwarded_head.extend_from_slice(line.as_bytes());
         forwarded_head.extend_from_slice(b"\r\n");
     }
-    forwarded_head.extend_from_slice(b"\r\n");
+    // Forward-mode connections currently carry one request. Asking the origin
+    // to close prevents a client from reusing this proxy connection for a
+    // different target after the response has completed.
+    forwarded_head.extend_from_slice(b"Connection: close\r\n\r\n");
     Ok(HttpRequest {
         target,
         kind: HttpRequestKind::Forward,
@@ -752,8 +756,8 @@ mod tests {
     }
 
     #[test]
-    fn http_forward_request_uses_origin_form_and_keeps_buffered_body() {
-        let bytes = b"POST http://example.test:8080/path?q=1 HTTP/1.1\r\nHost: example.test\r\nProxy-Connection: keep-alive\r\nContent-Length: 4\r\n\r\ntest".to_vec();
+    fn http_forward_request_uses_origin_form_and_disables_connection_reuse() {
+        let bytes = b"POST http://example.test:8080/path?q=1 HTTP/1.1\r\nHost: example.test\r\nConnection: keep-alive\r\nProxy-Connection: keep-alive\r\nContent-Length: 4\r\n\r\ntest".to_vec();
         let header_end = find_header_end(&bytes).unwrap();
         let request = parse_http_request(bytes, header_end).unwrap();
 
@@ -763,5 +767,7 @@ mod tests {
         let head = String::from_utf8(request.forwarded_head).unwrap();
         assert!(head.starts_with("POST /path?q=1 HTTP/1.1\r\n"));
         assert!(!head.to_ascii_lowercase().contains("proxy-connection"));
+        assert!(!head.to_ascii_lowercase().contains("connection: keep-alive"));
+        assert!(head.ends_with("Connection: close\r\n\r\n"));
     }
 }
