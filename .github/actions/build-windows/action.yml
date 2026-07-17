@@ -84,7 +84,7 @@ runs:
     - name: Package 7-Zip installer
       shell: bash
       env:
-        BUNDLE_PREFIX: ${{ inputs.project-name }}-${{ inputs.arch-type }}
+        BUNDLE_PREFIX: ${{ inputs.project-name }}-windows-${{ inputs.arch-type }}
         PROJECT_NAME: ${{ inputs.project-name }}
       run: |
         "/c/Program Files/7-Zip/7z.exe" a -mx=9 "${BUNDLE_PREFIX}.7z" "./source/dist/${PROJECT_NAME}"
@@ -94,5 +94,5 @@ runs:
       uses: actions/upload-artifact@v7
       with:
         name: ${{ inputs.project-name }}-windows-${{ inputs.arch-type }}
-        path: ${{ inputs.project-name }}-${{ inputs.arch-type }}.exe
+        path: ${{ inputs.project-name }}-windows-${{ inputs.arch-type }}.exe
         if-no-files-found: error

@@ -115,11 +115,7 @@ jobs:
       - name: Rename release assets
         working-directory: builds
         run: |
-          for asset in "${PROJECT_NAME}"-*.exe; do
-            [ -e "${asset}" ] || continue
-            mv "${asset}" "${PROJECT_NAME}-${GITHUB_REF_NAME}-${asset#${PROJECT_NAME}-}"
-          done
-          for asset in "${PROJECT_NAME}"-linux-*; do
+          for asset in "${PROJECT_NAME}"-*; do
             [ -e "${asset}" ] || continue
             mv "${asset}" "${PROJECT_NAME}-${GITHUB_REF_NAME}-${asset#${PROJECT_NAME}-}"
           done
