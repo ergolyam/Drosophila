@@ -144,6 +144,9 @@ impl PrivilegedNode {
         let worker_arguments = vec![WORKER_FLAG.to_owned(), endpoint.to_string()];
         #[cfg(not(target_os = "linux"))]
         let worker_arguments = vec![WORKER_FLAG.to_owned(), endpoint.to_string(), token.clone()];
+        #[cfg(windows)]
+        let launcher_exit = launch_elevated(&executable, &worker_arguments, &token);
+        #[cfg(not(windows))]
         let launcher_exit = launch_elevated(&executable, &worker_arguments, &token)?;
         let framed = accept_authenticated(listener, &token, launcher_exit).await?;
 
@@ -193,6 +196,7 @@ impl PrivilegedNode {
 }
 
 pub(crate) fn run_worker(arguments: WorkerArguments) -> Result<()> {
+    #[cfg(target_os = "linux")]
     restrict_linux_worker_privileges()?;
     let runtime = tokio::runtime::Builder::new_multi_thread()
         .enable_all()
@@ -465,7 +469,7 @@ fn launch_elevated(
     executable: &Path,
     arguments: &[String],
     _token: &str,
-) -> Result<oneshot::Receiver<String>> {
+) -> oneshot::Receiver<String> {
     let executable = PathBuf::from(executable);
     let arguments = arguments.to_vec();
     let (sender, receiver) = oneshot::channel();
@@ -478,7 +482,7 @@ fn launch_elevated(
         };
         let _ = sender.send(message);
     });
-    Ok(receiver)
+    receiver
 }
 
 #[cfg(not(any(target_os = "linux", windows)))]
@@ -530,11 +534,6 @@ fn restrict_linux_worker_privileges() -> Result<()> {
         Uid::effective().as_raw() == invoking_uid,
         "the TUN worker failed to drop its root user ID"
     );
-    Ok(())
-}
-
-#[cfg(not(target_os = "linux"))]
-fn restrict_linux_worker_privileges() -> Result<()> {
     Ok(())
 }
 
