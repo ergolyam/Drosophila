@@ -1,6 +1,8 @@
-# Drosophila
-
-Drosophila is a desktop application for running, configuring and monitoring a [Yggdrasil-ng](https://github.com/Revertron/Yggdrasil-ng) node.
+<div align="center">
+  <img src="./xdg/io.github.ergolyam.Drosophila.svg" width="128" alt="Drosophila logo">
+  <h1>Drosophila</h1>
+  <p>Drosophila is a desktop application for running, configuring and monitoring a <a href="https://github.com/Revertron/Yggdrasil-ng">Yggdrasil-ng</a> node.</p>
+</div>
 
 ## Features
 
