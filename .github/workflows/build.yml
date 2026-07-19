@@ -26,6 +26,7 @@ jobs:
         uses: actions/checkout@v6
         with:
           sparse-checkout: .github/actions
+          sparse-checkout-cone-mode: false
 
       - name: Build flatpak
         uses: ./.github/actions/build-flatpak
@@ -35,25 +36,26 @@ jobs:
           arch-type: ${{ matrix.arch }}
           gpg-private-key: ${{ secrets.GPG_PRIVATE_KEY }}
 
-  build-appimage:
+  build-linux:
     strategy:
       fail-fast: false
       matrix:
         arch: [ x86_64, aarch64 ]
+        libc: [ glibc, musl ]
     runs-on: ${{ matrix.arch == 'aarch64' && 'ubuntu-24.04-arm' || 'ubuntu-latest' }}
-    container:
-      image: docker.io/fedora:latest
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
         with:
           sparse-checkout: .github/actions
+          sparse-checkout-cone-mode: false
 
-      - name: Build appimage
-        uses: ./.github/actions/build-appimage
+      - name: Build linux
+        uses: ./.github/actions/build-linux
         with:
           project-name: ${{ github.event.repository.name }}
+          libc-type: ${{ matrix.libc }}
           arch-type: ${{ matrix.arch }}
 
   build-windows:
@@ -68,6 +70,7 @@ jobs:
         uses: actions/checkout@v6
         with:
           sparse-checkout: .github/actions
+          sparse-checkout-cone-mode: false
 
       - name: Build windows
         uses: ./.github/actions/build-windows

@@ -40,16 +40,17 @@ runs:
         ARCH_TYPE: ${{ inputs.arch-type }}
         GPG_FINGERPRINT: ${{ steps.gpg-key.outputs.fingerprint }}
         FLATPAK_ID: io.github.ergolyam.${{ inputs.project-name }}
+        PROJECT_NAME: ${{ inputs.project-name }}
       run: |
         echo "manifest_path=source/flatpak/${FLATPAK_ID}.yml" >> "${GITHUB_OUTPUT}"
 
         case "${BUILD_TYPE}" in
           bundle)
             echo "build_bundle=true" >> "${GITHUB_OUTPUT}"
-            echo "bundle=${{ inputs.project-name }}-${ARCH_TYPE}.flatpak" >> "${GITHUB_OUTPUT}"
+            echo "bundle=${PROJECT_NAME}-${ARCH_TYPE}.flatpak" >> "${GITHUB_OUTPUT}"
             echo "gpg_sign=" >> "${GITHUB_OUTPUT}"
-            echo "artifact_name=${{ inputs.project-name }}-flatpak-${ARCH_TYPE}" >> "${GITHUB_OUTPUT}"
-            echo "artifact_path=${{ inputs.project-name }}-${ARCH_TYPE}.flatpak" >> "${GITHUB_OUTPUT}"
+            echo "artifact_name=${PROJECT_NAME}-flatpak-${ARCH_TYPE}" >> "${GITHUB_OUTPUT}"
+            echo "artifact_path=${PROJECT_NAME}-${ARCH_TYPE}.flatpak" >> "${GITHUB_OUTPUT}"
             ;;
 
           repo)

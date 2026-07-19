@@ -2,6 +2,8 @@ name: CI
 
 on:
   pull_request:
+    paths-ignore:
+      - '**/*.md'
   workflow_dispatch:
 
 concurrency:
@@ -9,6 +11,28 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  checks:
+    runs-on: ubuntu-latest
+    container: docker.io/library/rust:1.97.0-alpine3.24
+    env:
+      RUSTFLAGS: -C target-feature=-crt-static
+
+    steps:
+      - name: Install native dependencies
+        run: apk add --no-cache git libadwaita-dev
+
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Install rustfmt
+        run: rustup component add rustfmt
+
+      - name: Check formatting
+        run: cargo fmt --all --check
+
+      - name: Test
+        run: cargo test --all-targets --locked
+
   build:
     uses: ./.github/workflows/build.yml
     with:

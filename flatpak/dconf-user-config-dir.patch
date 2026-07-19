@@ -1,0 +1,31 @@
+diff --git a/engine/dconf-engine-source-user.c b/engine/dconf-engine-source-user.c
+index b441c25..d5e4c36 100644
+--- a/engine/dconf-engine-source-user.c
++++ b/engine/dconf-engine-source-user.c
+@@ -39,13 +39,25 @@ dconf_engine_source_user_open_gvdb (const gchar *name)
+ {
+   GvdbTable *table;
+   gchar *filename;
++  gchar *resolved_config_dir = NULL;
++  const gchar *config_dir;
++
++  config_dir = g_getenv ("DCONF_USER_CONFIG_DIR");
++  if (config_dir == NULL || config_dir[0] == '\0')
++    config_dir = g_get_user_config_dir ();
++  else if (!g_path_is_absolute (config_dir))
++    {
++      resolved_config_dir = g_build_filename (g_get_home_dir (), config_dir, NULL);
++      config_dir = resolved_config_dir;
++    }
+ 
+   /* This can fail in the normal case of the user not having any
+    * settings.  That's OK and it shouldn't be considered as an error.
+    */
+-  filename = g_build_filename (g_get_user_config_dir (), "dconf", name, NULL);
++  filename = g_build_filename (config_dir, name, NULL);
+   table = gvdb_table_new (filename, FALSE, NULL);
+   g_free (filename);
++  g_free (resolved_config_dir);
+ 
+   return table;
+ }

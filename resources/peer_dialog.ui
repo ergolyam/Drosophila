@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<interface>
+  <requires lib="gtk" version="4.12"/>
+  <requires lib="adw" version="1.6"/>
+
+  <!-- Dialog -->
+  <object class="AdwAlertDialog" id="add_peer_dialog">
+    <property name="heading" translatable="yes">Add peer</property>
+    <property name="default-response">add</property>
+    <property name="close-response">cancel</property>
+    <responses>
+      <response id="cancel" translatable="yes">Cancel</response>
+      <response id="add"    translatable="yes" appearance="suggested">Add</response>
+    </responses>
+
+    <property name="extra-child">
+      <object class="GtkBox">
+        <property name="orientation">vertical</property>
+
+        <child>
+          <object class="AdwPreferencesGroup">
+            <!-- Domain -->
+            <child>
+              <object class="AdwEntryRow" id="domain_row">
+                <property name="title" translatable="yes">Domain</property>
+              </object>
+            </child>
+            <child>
+              <object class="GtkLabel" id="domain_error">
+                <property name="visible">False</property>
+                <property name="xalign">0.0</property>
+                <property name="wrap">True</property>
+                <property name="css-classes">error</property>
+                <property name="label" translatable="yes">Format: example.com:1234 or 1.2.3.4:1234</property>
+              </object>
+            </child>
+
+            <!-- Protocol -->
+            <child>
+              <object class="AdwComboRow" id="proto_row">
+                <property name="title" translatable="yes">Protocol</property>
+                <property name="selected">0</property>
+                <property name="model">
+                  <object class="GtkStringList">
+                    <items>
+                      <item>tcp</item>
+                      <item>tls</item>
+                      <item>ws</item>
+                      <item>wss</item>
+                      <item>quic</item>
+                    </items>
+                  </object>
+                </property>
+              </object>
+            </child>
+          </object>
+        </child>
+
+        <!-- SNI -->
+        <child>
+          <object class="AdwPreferencesGroup" id="sni_group">
+            <property name="visible">False</property>
+            <property name="margin-top">6</property>
+            <child>
+              <object class="AdwEntryRow" id="sni_row">
+                <property name="title" translatable="yes">SNI</property>
+              </object>
+            </child>
+            <child>
+              <object class="GtkLabel" id="sni_error">
+                <property name="visible">False</property>
+                <property name="xalign">0.0</property>
+                <property name="wrap">True</property>
+                <property name="css-classes">error</property>
+                <property name="label" translatable="yes">SNI only the domain name, e.g. example.com</property>
+              </object>
+            </child>
+          </object>
+        </child>
+
+        <!-- Password -->
+        <child>
+          <object class="AdwPreferencesGroup" id="password_group">
+            <property name="margin-top">6</property>
+            <child>
+              <object class="AdwPasswordEntryRow" id="password_row">
+                <property name="title" translatable="yes">Password</property>
+              </object>
+            </child>
+          </object>
+        </child>
+
+      </object>
+    </property>
+  </object>
+</interface>

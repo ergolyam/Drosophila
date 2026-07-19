@@ -1,0 +1,149 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<interface>
+  <requires lib="gtk" version="4.12"/>
+  <requires lib="adw" version="1.6"/>
+
+  <object class="GtkBox" id="settings">
+    <property name="orientation">vertical</property>
+    <property name="margin-top">12</property>
+
+    <child>
+      <object class="AdwClamp" id="settings_clamp">
+        <child>
+          <object class="GtkBox">
+            <property name="orientation">vertical</property>
+            <property name="spacing">18</property>
+            <property name="margin-bottom">12</property>
+
+            <child>
+              <object class="AdwPreferencesGroup" id="connection_group">
+                <property name="title">Connection</property>
+                <property name="description">Choose how applications connect to Yggdrasil.</property>
+
+                <child>
+                  <object class="AdwComboRow" id="mode_row">
+                    <property name="title">Connection Mode</property>
+                  </object>
+                </child>
+
+                <child>
+                  <object class="AdwExpanderRow" id="proxy_card">
+                    <property name="title">Proxy Details</property>
+                    <property name="subtitle">HTTP and SOCKS5 on 127.0.0.1:1080</property>
+                    <property name="expanded">False</property>
+
+                    <child>
+                      <object class="GtkBox" id="proxy_box">
+                        <property name="orientation">vertical</property>
+                        <property name="spacing">6</property>
+
+                        <child>
+                          <object class="AdwEntryRow" id="proxy_listen_row">
+                            <property name="title">Listen Address</property>
+                            <property name="text">127.0.0.1:1080</property>
+                          </object>
+                        </child>
+
+                        <child>
+                          <object class="AdwEntryRow" id="proxy_dns_ip_row">
+                            <property name="title">Overlay DNS Server</property>
+                            <property name="text"/>
+                          </object>
+                        </child>
+
+                        <child>
+                          <object class="AdwEntryRow" id="proxy_dns_port_row">
+                            <property name="title">Overlay DNS Port</property>
+                            <property name="text">53</property>
+                          </object>
+                        </child>
+                      </object>
+                    </child>
+                  </object>
+                </child>
+              </object>
+            </child>
+
+            <child>
+              <object class="AdwPreferencesGroup" id="identity_group">
+                <property name="title">Identity</property>
+
+                <child>
+                  <object class="AdwEntryRow" id="private_key_row">
+                    <property name="title">Private Key</property>
+                    <property name="text"/>
+                    <property name="hexpand">True</property>
+
+                    <child type="suffix">
+                      <object class="GtkButton" id="private_key_regen_icon">
+                        <property name="css-classes">flat</property>
+                        <property name="tooltip-text">Regenerate</property>
+                        <property name="focus-on-click">False</property>
+                        <child>
+                          <object class="GtkImage">
+                            <property name="icon-name">view-refresh-symbolic</property>
+                          </object>
+                        </child>
+                      </object>
+                    </child>
+                  </object>
+                </child>
+              </object>
+            </child>
+
+            <child>
+              <object class="AdwPreferencesGroup" id="peers_group">
+                <property name="title">Peers</property>
+                <property name="description">No peers configured</property>
+
+                <child type="header-suffix">
+                  <object class="GtkMenuButton" id="add_peer_btn">
+                    <property name="icon-name">list-add-symbolic</property>
+                    <property name="tooltip-text" translatable="yes">Add peer</property>
+                    <property name="css-classes">flat</property>
+                    <property name="popover">
+                      <object class="GtkPopover" id="add_peer_popover">
+                        <child>
+                          <object class="GtkBox">
+                            <property name="orientation">vertical</property>
+                            <property name="margin-top">6</property>
+                            <property name="margin-bottom">6</property>
+                            <property name="margin-start">6</property>
+                            <property name="margin-end">6</property>
+                            <property name="spacing">6</property>
+
+                            <child>
+                              <object class="GtkButton" id="add_peer_manual_btn">
+                                <property name="label" translatable="yes">Add manually</property>
+                                <property name="css-classes">flat</property>
+                              </object>
+                            </child>
+
+                            <child>
+                              <object class="GtkButton" id="add_peer_find_btn">
+                                <property name="label" translatable="yes">Find peers</property>
+                                <property name="css-classes">flat</property>
+                              </object>
+                            </child>
+                          </object>
+                        </child>
+                      </object>
+                    </property>
+                  </object>
+                </child>
+
+                <child>
+                  <object class="GtkListBox" id="peers_box">
+                    <property name="show-separators">True</property>
+                    <property name="css-classes">boxed-list</property>
+                    <property name="selection-mode">none</property>
+                  </object>
+                </child>
+              </object>
+            </child>
+          </object>
+        </child>
+      </object>
+    </child>
+  </object>
+</interface>

@@ -1,5 +1,5 @@
-name: Build windows
-description: Checkout and build the windows executable, then publish it to the artifacts.
+name: Build Windows installer
+description: Build the application and package it as a 7-Zip self-extracting installer.
 
 inputs:
   project-name:
@@ -16,7 +16,6 @@ runs:
       uses: actions/checkout@v6
       with:
         path: source
-        fetch-depth: 0
 
     - name: Setup MSYS2
       uses: msys2/setup-msys2@v2
@@ -26,30 +25,14 @@ runs:
         msystem: ${{ inputs.arch-type == 'aarch64' && 'CLANGARM64' || 'MINGW64' }}
         update: true
         install: >-
-          git
-          mingw-w64-${{ env.MSYS2_PREFIX }}-adwaita-icon-theme
-          mingw-w64-${{ env.MSYS2_PREFIX }}-gdk-pixbuf2
-          mingw-w64-${{ env.MSYS2_PREFIX }}-gobject-introspection
-          mingw-w64-${{ env.MSYS2_PREFIX }}-gtk4
-          mingw-w64-${{ env.MSYS2_PREFIX }}-hicolor-icon-theme
           mingw-w64-${{ env.MSYS2_PREFIX }}-libadwaita
-          mingw-w64-${{ env.MSYS2_PREFIX }}-librsvg
-          mingw-w64-${{ env.MSYS2_PREFIX }}-pyinstaller
-          mingw-w64-${{ env.MSYS2_PREFIX }}-pyinstaller-hooks-contrib
-          mingw-w64-${{ env.MSYS2_PREFIX }}-python
-          mingw-w64-${{ env.MSYS2_PREFIX }}-python-gobject
-          mingw-w64-${{ env.MSYS2_PREFIX }}-python-pip
-          mingw-w64-${{ env.MSYS2_PREFIX }}-python-setuptools-scm
+          mingw-w64-${{ env.MSYS2_PREFIX }}-ntldd
+          mingw-w64-${{ env.MSYS2_PREFIX }}-pkgconf
+          mingw-w64-${{ env.MSYS2_PREFIX }}-rust
 
     - name: Install 7-Zip
       shell: powershell
       run: choco install 7zip -y --no-progress
-
-    - name: Build yggdrasil and yggstack
-      uses: ./.github/actions/build-ygg
-      with:
-        goos: windows
-        goarch: ${{ inputs.arch-type == 'aarch64' && 'arm64' || 'amd64' }}
 
     - name: Download Wintun
       shell: bash
@@ -59,37 +42,57 @@ runs:
         curl.exe -fL -o wintun.zip https://www.wintun.net/builds/wintun-0.14.1.zip
         echo "07c256185d6ee3652e09fa55c0b673e2624b565e02c4b9091c79ca7d2f24ef51  wintun.zip" | sha256sum -c -
         "/c/Program Files/7-Zip/7z.exe" x -y wintun.zip -owintun
-        cp wintun/wintun/bin/${ARCH}/wintun.dll source/
+        cp "wintun/wintun/bin/${ARCH}/wintun.dll" source/
 
-    - name: Prepare binaries
-      shell: bash
-      run: |
-        cp yggdrasil/yggdrasil.exe source/
-        cp yggdrasil/yggdrasilctl.exe source/
-        cp yggstack/yggstack.exe source/
-
-    - name: Build ${{ inputs.project-name }}
+    - name: Build application
       working-directory: source
       shell: msys2 {0}
-      run: |
-        python -m PyInstaller \
-          --clean \
-          --noconfirm \
-          --distpath dist \
-          --workpath build \
-          pyinstaller-windows.spec
+      run: cargo build --release --locked
 
-    - name: Package SFX
+    - name: Assemble portable directory
+      working-directory: source
+      shell: msys2 {0}
+      env:
+        PROJECT_NAME: ${{ inputs.project-name }}
+      run: |
+        bundle_dir="dist/${PROJECT_NAME}"
+        mkdir -p "${bundle_dir}/lib/gdk-pixbuf-2.0/2.10.0" "${bundle_dir}/share"
+        cp "target/release/drosophila.exe" "${bundle_dir}/Drosophila.exe"
+        cp wintun.dll license readme.md "${bundle_dir}/"
+
+        cp -r "${MINGW_PREFIX}/share/glib-2.0" "${bundle_dir}/share/"
+        cp -r "${MINGW_PREFIX}/share/icons" "${bundle_dir}/share/"
+        install -Dm644 xdg/io.github.ergolyam.Drosophila.svg \
+          "${bundle_dir}/share/icons/hicolor/scalable/apps/io.github.ergolyam.Drosophila.svg"
+        cp -r "${MINGW_PREFIX}/share/libadwaita" "${bundle_dir}/share/" 2>/dev/null || true
+        cp -r "${MINGW_PREFIX}/lib/gdk-pixbuf-2.0/2.10.0/loaders" "${bundle_dir}/lib/gdk-pixbuf-2.0/2.10.0/"
+
+        ntldd -R -D "${MINGW_PREFIX}/bin" \
+          "${bundle_dir}/Drosophila.exe" \
+          "${bundle_dir}/lib/gdk-pixbuf-2.0/2.10.0/loaders/"*.dll \
+          | awk '/=> .*\\(mingw64|clangarm64)\\/ { print $3 }' \
+          | while IFS= read -r windows_dll_path; do
+            dll_path="$(cygpath --unix "${windows_dll_path}")"
+            target_path="${bundle_dir}/$(basename "${dll_path}")"
+            cp "${dll_path}" "${target_path}"
+          done
+
+        cd "${bundle_dir}"
+        gdk-pixbuf-query-loaders lib/gdk-pixbuf-2.0/2.10.0/loaders/*.dll \
+          > lib/gdk-pixbuf-2.0/2.10.0/loaders.cache
+
+    - name: Package 7-Zip installer
       shell: bash
       env:
-        BUNDLE_PREFIX: ${{ inputs.project-name }}-${{ inputs.arch-type }}
+        BUNDLE_PREFIX: ${{ inputs.project-name }}-windows-${{ inputs.arch-type }}
+        PROJECT_NAME: ${{ inputs.project-name }}
       run: |
-        "/c/Program Files/7-Zip/7z.exe" a -mx=9 "${BUNDLE_PREFIX}.7z" ./source/dist/${{ inputs.project-name }}
+        "/c/Program Files/7-Zip/7z.exe" a -mx=9 "${BUNDLE_PREFIX}.7z" "./source/dist/${PROJECT_NAME}"
         cat "/c/Program Files/7-Zip/7z.sfx" "${BUNDLE_PREFIX}.7z" > "${BUNDLE_PREFIX}.exe"
 
     - name: Upload Windows artifact
       uses: actions/upload-artifact@v7
       with:
         name: ${{ inputs.project-name }}-windows-${{ inputs.arch-type }}
-        path: ${{ inputs.project-name }}-${{ inputs.arch-type }}.exe
+        path: ${{ inputs.project-name }}-windows-${{ inputs.arch-type }}.exe
         if-no-files-found: error

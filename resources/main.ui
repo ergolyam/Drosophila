@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<interface>
+  <requires lib="gtk" version="4.12"/>
+  <requires lib="adw" version="1.6"/>
+
+  <object class="GtkBox" id="main">
+    <property name="orientation">vertical</property>
+    <property name="margin-top">12</property>
+
+    <child>
+      <object class="AdwClamp" id="main_clamp">
+        <child>
+          <object class="AdwPreferencesGroup" id="main_group">
+
+            <child>
+              <object class="AdwExpanderRow" id="ygg_card">
+                <property name="title">Yggdrasil</property>
+                <property name="subtitle">Stopped</property>
+                <property name="show-enable-switch">True</property>
+                <property name="enable-expansion">False</property>
+                <property name="expanded">False</property>
+
+                <child>
+                  <object class="GtkBox" id="ipv6_box">
+                    <property name="orientation">vertical</property>
+                    <property name="spacing">6</property>
+
+                    <child>
+                      <object class="AdwActionRow" id="address_row">
+                        <property name="title">IPv6 Address</property>
+                        <property name="subtitle">–</property>
+                        <property name="activatable">True</property>
+                        <child type="suffix">
+                          <object class="GtkImage" id="address_copy_icon">
+                            <property name="icon-name">edit-copy-symbolic</property>
+                          </object>
+                        </child>
+                      </object>
+                    </child>
+
+                    <child>
+                      <object class="AdwActionRow" id="subnet_row">
+                        <property name="title">IPv6 Subnet</property>
+                        <property name="subtitle">–</property>
+                        <property name="activatable">True</property>
+                        <child type="suffix">
+                          <object class="GtkImage" id="subnet_copy_icon">
+                            <property name="icon-name">edit-copy-symbolic</property>
+                          </object>
+                        </child>
+                      </object>
+                    </child>
+                  </object>
+                </child>
+              </object>
+            </child>
+
+          </object>
+        </child>
+      </object>
+    </child>
+  </object>
+</interface>
