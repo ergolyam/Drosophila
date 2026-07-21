@@ -927,9 +927,15 @@ impl DiscoveryDialog {
                 *self.peers.borrow_mut() = peers;
                 self.refresh_list();
             }
-            Err(error) => self
-                .progress_label
-                .set_label(&format!("Search failed: {error}")),
+            Err(error) => {
+                self.progress_label
+                    .set_label(&format!("Search failed: {error}"));
+                if let Some(app) = self.app.upgrade() {
+                    app.discovery_cache
+                        .borrow_mut()
+                        .remove(self.cache_key.borrow().as_str());
+                }
+            }
         }
     }
 
