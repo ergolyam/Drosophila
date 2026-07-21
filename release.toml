@@ -1,0 +1,14 @@
+allow-branch = ["main"]
+
+publish = false
+push = false
+verify = false
+
+tag-name = "v{{version}}"
+tag-message = "release: {{tag_name}}"
+pre-release-commit-message = "release: {{version}}"
+
+# pre-release-hook = ["cargo", "test"]
+pre-release-replacements = [
+  { file = "xdg/io.github.ergolyam.Drosophila.metainfo.xml", search = "<releases>", replace = "<releases>\n    <release version=\"{{version}}\" date=\"{{date}}\"/>", exactly = 1 },
+]
