@@ -221,11 +221,15 @@ impl Ui {
         #[cfg(not(feature = "tun"))]
         self.mode_row
             .set_model(Some(&gtk::StringList::new(&["Proxy", "System Proxy"])));
-        self.connection_group.set_description(Some(if cfg!(feature = "tun") {
-            "System Proxy updates desktop settings. Proxy only exposes a local endpoint. TUN routes applications that do not use proxy settings."
-        } else {
-            "System Proxy updates desktop settings. Proxy only exposes a local endpoint."
-        }));
+        let connection_description = [
+            #[cfg(feature = "tun")]
+            "TUN routes traffic directly.",
+            "Proxy exposes a local endpoint.",
+            "System Proxy updates desktop settings.",
+        ]
+        .join(" ");
+        self.connection_group
+            .set_description(Some(&connection_description));
         self.set_connection_mode(gui.effective_mode());
         self.proxy_listen_row.set_text(&gui.proxy_listen);
         self.proxy_dns_ip_row.set_text(&gui.dns_server);
