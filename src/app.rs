@@ -110,6 +110,7 @@ struct Ui {
     peer_icons: RefCell<HashMap<String, (gtk::Image, String)>>,
     peer_delete_buttons: RefCell<Vec<gtk::Button>>,
     discovery: RefCell<Option<Rc<DiscoveryDialog>>>,
+    discovery_cache: RefCell<HashMap<String, Vec<DiscoveredPeer>>>,
     next_discovery_id: Cell<u64>,
 }
 
@@ -192,6 +193,7 @@ impl Ui {
             peer_icons: RefCell::new(HashMap::new()),
             peer_delete_buttons: RefCell::new(Vec::new()),
             discovery: RefCell::new(None),
+            discovery_cache: RefCell::new(HashMap::new()),
             next_discovery_id: Cell::new(1),
         });
 
@@ -753,7 +755,7 @@ impl Ui {
     fn open_discovery(self: &Rc<Self>) {
         let dialog = DiscoveryDialog::new(Rc::downgrade(self));
         *self.discovery.borrow_mut() = Some(dialog.clone());
-        dialog.start();
+        dialog.start(false);
         dialog.dialog.present(Some(&self.window));
     }
 
@@ -777,6 +779,7 @@ struct DiscoveryDialog {
     peers: RefCell<Vec<DiscoveredPeer>>,
     visible: RefCell<Vec<DiscoveredPeer>>,
     id: Cell<u64>,
+    cache_key: RefCell<String>,
 }
 
 impl DiscoveryDialog {
@@ -803,6 +806,7 @@ impl DiscoveryDialog {
             peers: RefCell::new(Vec::new()),
             visible: RefCell::new(Vec::new()),
             id: Cell::new(0),
+            cache_key: RefCell::new(String::new()),
         });
         this.connect(&builder);
         this
@@ -838,7 +842,7 @@ impl DiscoveryDialog {
             let weak = Rc::downgrade(self);
             move |_| {
                 if let Some(dialog) = weak.upgrade() {
-                    dialog.start();
+                    dialog.start(true);
                 }
             }
         });
@@ -861,19 +865,37 @@ impl DiscoveryDialog {
         });
     }
 
-    fn start(&self) {
-        let Some(app) = self.app.upgrade() else {
-            return;
-        };
-        let protocols = self
-            .filters
+    fn selected_protocols(&self) -> Vec<String> {
+        self.filters
             .iter()
             .filter(|(_, button)| button.is_active())
             .map(|(protocol, _)| protocol.clone())
-            .collect::<Vec<_>>();
+            .collect()
+    }
+
+    fn cache_key(protocols: &[String]) -> String {
+        let mut protocols = protocols.to_vec();
+        protocols.sort_unstable();
+        protocols.join("|")
+    }
+
+    fn start(&self, refresh: bool) {
+        let Some(app) = self.app.upgrade() else {
+            return;
+        };
+        let protocols = self.selected_protocols();
         if protocols.is_empty() {
             self.progress_label
                 .set_label("Select at least one protocol");
+            return;
+        }
+        let cache_key = Self::cache_key(&protocols);
+        (*self.cache_key.borrow_mut()).clone_from(&cache_key);
+        if !refresh && let Some(peers) = app.discovery_cache.borrow().get(&cache_key) {
+            (*self.peers.borrow_mut()).clone_from(peers);
+            self.refresh_list();
+            self.spinner.stop();
+            self.spinner.set_visible(false);
             return;
         }
         let id = app.next_discovery_id.get();
@@ -897,6 +919,11 @@ impl DiscoveryDialog {
         self.spinner.set_visible(false);
         match result {
             Ok(peers) => {
+                if let Some(app) = self.app.upgrade() {
+                    app.discovery_cache
+                        .borrow_mut()
+                        .insert(self.cache_key.borrow().clone(), peers.clone());
+                }
                 *self.peers.borrow_mut() = peers;
                 self.refresh_list();
             }
