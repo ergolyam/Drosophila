@@ -775,6 +775,7 @@ struct DiscoveryDialog {
     spinner: gtk::Spinner,
     progress_box: gtk::Box,
     progress_label: gtk::Label,
+    refresh_button: gtk::Button,
     filters: Vec<(String, gtk::CheckButton)>,
     peers: RefCell<Vec<DiscoveredPeer>>,
     visible: RefCell<Vec<DiscoveredPeer>>,
@@ -802,17 +803,18 @@ impl DiscoveryDialog {
             spinner: object(&builder, "peer_discovery_spinner").unwrap(),
             progress_box: object(&builder, "peer_discovery_progress_box").unwrap(),
             progress_label: object(&builder, "peer_discovery_progress_label").unwrap(),
+            refresh_button: object(&builder, "refresh_peers_btn").unwrap(),
             filters,
             peers: RefCell::new(Vec::new()),
             visible: RefCell::new(Vec::new()),
             id: Cell::new(0),
             request_protocols: RefCell::new(Vec::new()),
         });
-        this.connect(&builder);
+        this.connect();
         this
     }
 
-    fn connect(self: &Rc<Self>, builder: &gtk::Builder) {
+    fn connect(self: &Rc<Self>) {
         self.dialog.set_response_enabled("use", false);
         for (protocol, button) in &self.filters {
             button.set_active(protocol == "tcp" || protocol == "tls");
@@ -837,8 +839,7 @@ impl DiscoveryDialog {
             let dialog = self.dialog.clone();
             move |_, row| dialog.set_response_enabled("use", row.is_some())
         });
-        let refresh: gtk::Button = object(builder, "refresh_peers_btn").unwrap();
-        refresh.connect_clicked({
+        self.refresh_button.connect_clicked({
             let weak = Rc::downgrade(self);
             move |_| {
                 if let Some(dialog) = weak.upgrade() {
@@ -905,10 +906,12 @@ impl DiscoveryDialog {
         self.spinner.start();
         self.progress_label.set_label("Searching for peers…");
         self.dialog.set_response_enabled("use", false);
+        self.refresh_button.set_sensitive(false);
         app.backend.discover(id, protocols);
     }
 
     fn set_result(&self, result: Result<Vec<DiscoveredPeer>, String>) {
+        self.refresh_button.set_sensitive(true);
         self.spinner.stop();
         self.spinner.set_visible(false);
         match result {
