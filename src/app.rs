@@ -110,7 +110,7 @@ struct Ui {
     peer_icons: RefCell<HashMap<String, (gtk::Image, String)>>,
     peer_delete_buttons: RefCell<Vec<gtk::Button>>,
     discovery: RefCell<Option<Rc<DiscoveryDialog>>>,
-    discovery_cache: RefCell<HashMap<String, Vec<DiscoveredPeer>>>,
+    discovery_cache: RefCell<DiscoveryCache>,
     next_discovery_id: Cell<u64>,
 }
 
@@ -193,7 +193,7 @@ impl Ui {
             peer_icons: RefCell::new(HashMap::new()),
             peer_delete_buttons: RefCell::new(Vec::new()),
             discovery: RefCell::new(None),
-            discovery_cache: RefCell::new(HashMap::new()),
+            discovery_cache: RefCell::new(DiscoveryCache::default()),
             next_discovery_id: Cell::new(1),
         });
 
@@ -779,7 +779,7 @@ struct DiscoveryDialog {
     peers: RefCell<Vec<DiscoveredPeer>>,
     visible: RefCell<Vec<DiscoveredPeer>>,
     id: Cell<u64>,
-    cache_key: RefCell<String>,
+    request_protocols: RefCell<Vec<String>>,
 }
 
 impl DiscoveryDialog {
@@ -806,7 +806,7 @@ impl DiscoveryDialog {
             peers: RefCell::new(Vec::new()),
             visible: RefCell::new(Vec::new()),
             id: Cell::new(0),
-            cache_key: RefCell::new(String::new()),
+            request_protocols: RefCell::new(Vec::new()),
         });
         this.connect(&builder);
         this
@@ -873,12 +873,6 @@ impl DiscoveryDialog {
             .collect()
     }
 
-    fn cache_key(protocols: &[String]) -> String {
-        let mut protocols = protocols.to_vec();
-        protocols.sort_unstable();
-        protocols.join("|")
-    }
-
     fn start(&self, refresh: bool) {
         let Some(app) = self.app.upgrade() else {
             return;
@@ -889,11 +883,11 @@ impl DiscoveryDialog {
                 .set_label("Select at least one protocol");
             return;
         }
-        let cache_key = Self::cache_key(&protocols);
-        (*self.cache_key.borrow_mut()).clone_from(&cache_key);
-        if !refresh && let Some(peers) = app.discovery_cache.borrow().get(&cache_key) {
-            (*self.peers.borrow_mut()).clone_from(peers);
+        (*self.request_protocols.borrow_mut()).clone_from(&protocols);
+        if !refresh && let Some(peers) = app.discovery_cache.borrow().get(&protocols) {
+            *self.peers.borrow_mut() = peers.to_vec();
             self.refresh_list();
+            self.progress_box.set_visible(true);
             self.spinner.stop();
             self.spinner.set_visible(false);
             return;
@@ -922,18 +916,19 @@ impl DiscoveryDialog {
                 if let Some(app) = self.app.upgrade() {
                     app.discovery_cache
                         .borrow_mut()
-                        .insert(self.cache_key.borrow().clone(), peers.clone());
+                        .insert(&self.request_protocols.borrow(), peers.clone());
                 }
                 *self.peers.borrow_mut() = peers;
                 self.refresh_list();
             }
             Err(error) => {
                 tracing::warn!(%error, "peer discovery failed");
-                self.progress_label.set_label("Search failed. See log for details.");
+                self.progress_label
+                    .set_label("Search failed. See log for details.");
                 if let Some(app) = self.app.upgrade() {
                     app.discovery_cache
                         .borrow_mut()
-                        .remove(self.cache_key.borrow().as_str());
+                        .remove(&self.request_protocols.borrow());
                 }
             }
         }
@@ -1086,5 +1081,58 @@ mod tests {
     #[test]
     fn ipv6_endpoint_is_bracketed() {
         assert_eq!(format_endpoint("2001:db8::1", 443), "[2001:db8::1]:443");
+    }
+}
+#[derive(Default)]
+struct DiscoveryCache {
+    entries: HashMap<Vec<String>, Vec<DiscoveredPeer>>,
+}
+
+impl DiscoveryCache {
+    fn key(protocols: &[String]) -> Vec<String> {
+        let mut protocols = protocols.to_vec();
+        protocols.sort_unstable();
+        protocols
+    }
+
+    fn get(&self, protocols: &[String]) -> Option<&[DiscoveredPeer]> {
+        self.entries.get(&Self::key(protocols)).map(Vec::as_slice)
+    }
+
+    fn insert(&mut self, protocols: &[String], peers: Vec<DiscoveredPeer>) {
+        self.entries.insert(Self::key(protocols), peers);
+    }
+
+    fn remove(&mut self, protocols: &[String]) {
+        self.entries.remove(&Self::key(protocols));
+    }
+}
+
+#[cfg(test)]
+mod discovery_cache_tests {
+    use super::DiscoveryCache;
+
+    fn protocols(values: &[&str]) -> Vec<String> {
+        values.iter().map(|value| (*value).to_owned()).collect()
+    }
+
+    #[test]
+    fn protocol_order_does_not_affect_cache_lookup() {
+        let mut cache = DiscoveryCache::default();
+        cache.insert(&protocols(&["tcp", "tls"]), Vec::new());
+
+        assert!(cache.get(&protocols(&["tls", "tcp"])).is_some());
+    }
+
+    #[test]
+    fn removing_request_keeps_other_cached_protocols() {
+        let mut cache = DiscoveryCache::default();
+        cache.insert(&protocols(&["tcp", "tls"]), Vec::new());
+        cache.insert(&protocols(&["ws"]), Vec::new());
+
+        cache.remove(&protocols(&["tls", "tcp"]));
+
+        assert!(cache.get(&protocols(&["tcp", "tls"])).is_none());
+        assert!(cache.get(&protocols(&["ws"])).is_some());
     }
 }
