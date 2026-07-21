@@ -124,9 +124,9 @@ impl Ui {
         let config = load_or_create(&config_path)?;
 
         let builder = gtk::Builder::new();
-        builder.add_from_string(include_str!("../resources/ui.ui"))?;
-        builder.add_from_string(include_str!("../resources/main.ui"))?;
-        builder.add_from_string(include_str!("../resources/settings.ui"))?;
+        builder.add_from_string(include_str!("resources/ui.ui"))?;
+        builder.add_from_string(include_str!("resources/main.ui"))?;
+        builder.add_from_string(include_str!("resources/settings.ui"))?;
 
         let window: adw::ApplicationWindow = object(&builder, "main_window")?;
         window.set_application(Some(application));
@@ -156,7 +156,7 @@ impl Ui {
         });
 
         let provider = gtk::CssProvider::new();
-        provider.load_from_string(include_str!("../resources/ui.css"));
+        provider.load_from_string(include_str!("resources/ui.css"));
         if let Some(display) = gdk::Display::default() {
             gtk::style_context_add_provider_for_display(
                 &display,
@@ -663,7 +663,7 @@ impl Ui {
     }
 
     fn open_add_peer_dialog(self: &Rc<Self>, prefill: Option<DiscoveredPeer>) {
-        let builder = gtk::Builder::from_string(include_str!("../resources/peer_dialog.ui"));
+        let builder = gtk::Builder::from_string(include_str!("resources/peer_dialog.ui"));
         let dialog: adw::AlertDialog = object(&builder, "add_peer_dialog").unwrap();
         let domain: adw::EntryRow = object(&builder, "domain_row").unwrap();
         let protocol: adw::ComboRow = object(&builder, "proto_row").unwrap();
@@ -764,7 +764,7 @@ impl Ui {
     }
 
     fn open_about(&self) {
-        let builder = gtk::Builder::from_string(include_str!("../resources/about_dialog.ui"));
+        let builder = gtk::Builder::from_string(include_str!("resources/about_dialog.ui"));
         let about: adw::AboutDialog = object(&builder, "about_dialog").unwrap();
         about.set_version(env!("CARGO_PKG_VERSION"));
         about.present(Some(&self.window));
@@ -789,7 +789,7 @@ struct DiscoveryDialog {
 
 impl DiscoveryDialog {
     fn new(app: Weak<Ui>) -> Rc<Self> {
-        let builder = gtk::Builder::from_string(include_str!("../resources/peer_discovery.ui"));
+        let builder = gtk::Builder::from_string(include_str!("resources/peer_discovery.ui"));
         let filters = PROTOCOLS
             .iter()
             .map(|protocol| {
