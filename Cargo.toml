@@ -1,6 +1,6 @@
 [package]
 name = "drosophila"
-version = "2.0.0"
+version = "2.1.0"
 edition = "2024"
 rust-version = "1.92"
 description = "Native GTK frontend for an embedded Yggdrasil-ng node"
