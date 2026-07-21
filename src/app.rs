@@ -928,8 +928,8 @@ impl DiscoveryDialog {
                 self.refresh_list();
             }
             Err(error) => {
-                self.progress_label
-                    .set_label(&format!("Search failed: {error}"));
+                tracing::warn!(%error, "peer discovery failed");
+                self.progress_label.set_label("Search failed. See log for details.");
                 if let Some(app) = self.app.upgrade() {
                     app.discovery_cache
                         .borrow_mut()
