@@ -2,7 +2,9 @@
 
 ## Native build
 
-Requirements: the Nix package manager. Alpine Linux can use Rust 1.92 or newer, GTK 4.12 or newer and libadwaita 1.6 or newer instead to produce a musl binary.
+Requirements: Rust 1.92 or newer, GTK 4.12 or newer and libadwaita 1.6 or newer.
+
+If the packaged Rust version is older than 1.92, install Rust from [rustup.rs](https://rustup.rs/). Debian 12 has unsupported GTK and libadwaita versions.
 
 ### Install dependencies
 
@@ -10,64 +12,35 @@ Requirements: the Nix package manager. Alpine Linux can use Rust 1.92 or newer, 
 
 ```bash
 sudo apt update
-sudo apt install nix-setup-systemd
-sudo adduser "$USER" nix-users
+sudo apt install --no-install-recommends ca-certificates curl gcc libadwaita-1-dev
 ```
-
-Log out and back in after adding your user to `nix-users`.
 
 #### Fedora
 
 ```bash
-sudo dnf install nix nix-daemon
-sudo systemctl enable --now nix-daemon
+sudo dnf install --setopt=install_weak_deps=False cargo libadwaita-devel
 ```
 
 #### Arch Linux
 
 ```bash
-sudo pacman -S nix
-sudo systemctl enable --now nix-daemon
+sudo pacman -S rust libadwaita pkgconf
 ```
 
 #### Alpine Linux
-
-For a native musl build:
 
 ```bash
 sudo apk add cargo libadwaita-dev
 ```
 
-For a glibc build with Nix:
-
-```bash
-sudo apk add nix
-sudo addgroup "$USER" nix
-sudo rc-update add nix-daemon
-sudo rc-service nix-daemon start
-```
-
-Log out and back in after adding your user to `nix`.
-
 ### Build from the repository root
-
-```bash
-nix-shell --pure --run 'cargo build --release --locked'
-```
-
-On Alpine Linux, build directly with Cargo to produce a musl binary:
 
 ```bash
 cargo build --release --locked
 ```
+> It is also possible to build the project in `nix-shell` using `shell.nix`.
 
-The glibc binary produced on Alpine Linux must be run from the Nix environment:
-
-```bash
-nix-shell --run './target/release/drosophila'
-```
-
-The binary is `target/release/drosophila`. For debug logs, run `nix-shell --run 'cargo run --locked -- --debug'`, or `cargo run --locked -- --debug` for a native Alpine Linux build.
+The binary is `target/release/drosophila`. For debug logs, run `cargo run --locked -- --debug`.
 
 ## TUN access
 
