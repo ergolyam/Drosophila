@@ -212,17 +212,12 @@ impl Ui {
             .set_text(&self.config.borrow().yggdrasil.private_key);
 
         let gui = self.config.borrow().drosophila.clone();
-        #[cfg(feature = "tun")]
         self.mode_row.set_model(Some(&gtk::StringList::new(&[
             "TUN",
             "Proxy",
             "System Proxy",
         ])));
-        #[cfg(not(feature = "tun"))]
-        self.mode_row
-            .set_model(Some(&gtk::StringList::new(&["Proxy", "System Proxy"])));
         let connection_description = [
-            #[cfg(feature = "tun")]
             "TUN routes traffic directly.",
             "Proxy exposes a local endpoint.",
             "System Proxy updates desktop settings.",
@@ -230,7 +225,7 @@ impl Ui {
         .join(" ");
         self.connection_group
             .set_description(Some(&connection_description));
-        self.set_connection_mode(gui.effective_mode());
+        self.set_connection_mode(gui.mode);
         self.proxy_listen_row.set_text(&gui.proxy_listen);
         self.proxy_dns_ip_row.set_text(&gui.dns_server);
         self.proxy_dns_port_row.set_text(&gui.dns_port.to_string());
@@ -392,17 +387,10 @@ impl Ui {
         if self.suppress_mode_change.replace(false) {
             return;
         }
-        #[cfg(feature = "tun")]
         let mode = match selected {
             0 => ConnectionMode::Tun,
             1 => ConnectionMode::Proxy,
             _ => ConnectionMode::SystemProxy,
-        };
-        #[cfg(not(feature = "tun"))]
-        let mode = if selected == 0 {
-            ConnectionMode::Proxy
-        } else {
-            ConnectionMode::SystemProxy
         };
         self.config.borrow_mut().drosophila.mode = mode;
         self.update_proxy_card();
@@ -509,16 +497,10 @@ impl Ui {
     }
 
     fn set_connection_mode(&self, mode: ConnectionMode) {
-        #[cfg(feature = "tun")]
         let selected = match mode {
             ConnectionMode::Tun => 0,
             ConnectionMode::Proxy => 1,
             ConnectionMode::SystemProxy => 2,
-        };
-        #[cfg(not(feature = "tun"))]
-        let selected = match mode {
-            ConnectionMode::Proxy => 0,
-            ConnectionMode::SystemProxy | ConnectionMode::Tun => 1,
         };
         if self.mode_row.selected() != selected {
             self.suppress_mode_change.set(true);
@@ -528,7 +510,7 @@ impl Ui {
 
     fn update_proxy_card(&self) {
         let config = self.config.borrow();
-        let mode = config.drosophila.effective_mode();
+        let mode = config.drosophila.mode;
         self.proxy_card.set_visible(mode != ConnectionMode::Tun);
         self.proxy_card.set_title(match mode {
             ConnectionMode::SystemProxy => "System Proxy Details",

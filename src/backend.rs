@@ -9,7 +9,6 @@ use anyhow::{Context, Result, anyhow, bail};
 use tokio::sync::mpsc;
 use yggdrasil::core::Core;
 use yggdrasil::ipv6rwc::ReadWriteCloser;
-#[cfg(feature = "tun")]
 use yggdrasil::tun::TunAdapter;
 
 use crate::config::{ConnectionMode, StoredConfig, is_flatpak};
@@ -236,7 +235,7 @@ async fn start_node(
     remote_tx: &mpsc::UnboundedSender<RemoteEnvelope>,
     events: &std_mpsc::Sender<BackendEvent>,
 ) -> Option<ActiveNode> {
-    if config.drosophila.effective_mode() == ConnectionMode::Tun {
+    if config.drosophila.mode == ConnectionMode::Tun {
         *next_remote_session = next_remote_session.wrapping_add(1);
         let session = *next_remote_session;
         match PrivilegedNode::launch(config, session, remote_tx.clone()).await {
@@ -323,7 +322,6 @@ impl ActiveNode {
 
 pub(crate) struct RunningNode {
     core: Arc<Core>,
-    #[cfg(feature = "tun")]
     tun: Option<TunAdapter>,
     proxy: Option<UserspaceProxy>,
     system_proxy: Option<SystemProxy>,
@@ -333,7 +331,6 @@ pub(crate) struct RunningNode {
 }
 
 struct StartedTransports {
-    #[cfg(feature = "tun")]
     tun: Option<TunAdapter>,
     proxy: Option<UserspaceProxy>,
     system_proxy: Option<SystemProxy>,
@@ -341,7 +338,7 @@ struct StartedTransports {
 
 impl RunningNode {
     pub(crate) async fn start(mut stored: StoredConfig) -> Result<Self> {
-        let mode = match stored.drosophila.effective_mode() {
+        let mode = match stored.drosophila.mode {
             ConnectionMode::SystemProxy => NodeMode::SystemProxy,
             ConnectionMode::Proxy => NodeMode::Proxy,
             ConnectionMode::Tun => NodeMode::Tun,
@@ -377,7 +374,6 @@ impl RunningNode {
         }
 
         let result = match mode {
-            #[cfg(feature = "tun")]
             NodeMode::Tun => {
                 let tun_mtu = stored.yggdrasil.if_mtu.min(mtu).min(65_535) as u16;
                 TunAdapter::new(
@@ -397,8 +393,6 @@ impl RunningNode {
                 })
                 .map_err(anyhow::Error::msg)
             }
-            #[cfg(not(feature = "tun"))]
-            NodeMode::Tun => Err(anyhow!("this build does not include TUN support")),
             NodeMode::SystemProxy => start_proxy(rwc, &address, mtu, &stored, true).await,
             NodeMode::Proxy => start_proxy(rwc, &address, mtu, &stored, false).await,
         };
@@ -414,7 +408,6 @@ impl RunningNode {
 
         Ok(Self {
             core,
-            #[cfg(feature = "tun")]
             tun: transports.tun,
             proxy: transports.proxy,
             system_proxy: transports.system_proxy,
@@ -424,12 +417,10 @@ impl RunningNode {
         })
     }
 
-    #[cfg(feature = "tun")]
     pub(crate) fn address(&self) -> &str {
         &self.address
     }
 
-    #[cfg(feature = "tun")]
     pub(crate) fn subnet(&self) -> &str {
         &self.subnet
     }
@@ -460,7 +451,6 @@ impl RunningNode {
         }
         self.core.close_multicast().await;
         let _ = self.core.close().await;
-        #[cfg(feature = "tun")]
         if let Some(tun) = self.tun.take() {
             tun.close().await;
         }
@@ -493,7 +483,6 @@ async fn start_proxy(
     .await?;
     if !configure_system {
         return Ok(StartedTransports {
-            #[cfg(feature = "tun")]
             tun: None,
             proxy: Some(proxy),
             system_proxy: None,
@@ -501,7 +490,6 @@ async fn start_proxy(
     }
     match SystemProxy::enable(listen) {
         Ok(system_proxy) => Ok(StartedTransports {
-            #[cfg(feature = "tun")]
             tun: None,
             proxy: Some(proxy),
             system_proxy: Some(system_proxy),
