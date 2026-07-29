@@ -59,8 +59,6 @@ The policy provides the application-specific prompt for binaries installed to `/
 
 ## Flatpak build
 
-Flatpak builds without the `tun` feature.
-
 ```bash
 flatpak-builder --user --install --force-clean build-dir flatpak/io.github.ergolyam.Drosophila.yml
 flatpak run io.github.ergolyam.Drosophila
