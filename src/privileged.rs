@@ -23,7 +23,9 @@ use tokio::sync::{mpsc, oneshot};
 use tokio_util::codec::{Framed, LinesCodec};
 
 use crate::backend::RunningNode;
-use crate::config::{ConnectionMode, StoredConfig, is_flatpak};
+#[cfg(target_os = "linux")]
+use crate::config::is_flatpak;
+use crate::config::{ConnectionMode, StoredConfig};
 
 const WORKER_FLAG: &str = "--privileged-tun-worker";
 const PROTOCOL_VERSION: u32 = 1;
