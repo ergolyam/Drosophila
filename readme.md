@@ -20,8 +20,6 @@ flatpak remote-add --user Drosophila https://ergolyam.github.io/Drosophila/ergol
 flatpak install --user Drosophila io.github.ergolyam.Drosophila
 ```
 
-Flatpak supports System Proxy and plain Proxy modes, but not TUN.
-
 ### Binary
 
 Download a `glibc` or `musl` binary for `x86_64` or `aarch64` from the [releases page](https://github.com/ergolyam/Drosophila/releases). Use `musl` on Alpine Linux and `glibc` elsewhere.

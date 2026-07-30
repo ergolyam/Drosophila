@@ -1,10 +1,12 @@
 use std::collections::HashMap;
+#[cfg(target_os = "linux")]
+use std::ffi::OsString;
 use std::fmt::Write as _;
 #[cfg(target_os = "linux")]
 use std::io::Read as _;
 use std::net::{Ipv4Addr, SocketAddr};
 use std::path::Path;
-#[cfg(windows)]
+#[cfg(any(target_os = "linux", windows))]
 use std::path::PathBuf;
 #[cfg(target_os = "linux")]
 use std::process::Stdio;
@@ -21,7 +23,9 @@ use tokio::sync::{mpsc, oneshot};
 use tokio_util::codec::{Framed, LinesCodec};
 
 use crate::backend::RunningNode;
-use crate::config::{ConnectionMode, StoredConfig, is_flatpak};
+#[cfg(target_os = "linux")]
+use crate::config::is_flatpak;
+use crate::config::{ConnectionMode, StoredConfig};
 
 const WORKER_FLAG: &str = "--privileged-tun-worker";
 const PROTOCOL_VERSION: u32 = 1;
@@ -126,12 +130,6 @@ impl PrivilegedNode {
         session: u64,
         events: mpsc::UnboundedSender<RemoteEnvelope>,
     ) -> Result<Self> {
-        if is_flatpak() {
-            bail!(
-                "Flatpak cannot create a host TUN interface. Enable the SOCKS Proxy mode in Settings."
-            );
-        }
-
         let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0))
             .await
             .context("binding the privileged worker IPC listener")?;
@@ -198,7 +196,16 @@ impl PrivilegedNode {
 pub(crate) fn run_worker(arguments: WorkerArguments) -> Result<()> {
     #[cfg(target_os = "linux")]
     restrict_linux_worker_privileges()?;
-    let runtime = tokio::runtime::Builder::new_multi_thread()
+    let mut runtime_builder = tokio::runtime::Builder::new_multi_thread();
+    // Linux capabilities are per-thread. Runtime workers must discard the
+    // capability inherited from the caller before they execute any tasks.
+    #[cfg(target_os = "linux")]
+    runtime_builder.on_thread_start(|| {
+        if let Err(error) = drop_linux_worker_capabilities() {
+            panic!("dropping capabilities on a TUN runtime thread: {error:#}");
+        }
+    });
+    let runtime = runtime_builder
         .enable_all()
         .thread_name("drosophila-tun-worker")
         .build()
@@ -246,6 +253,11 @@ async fn worker_loop(arguments: WorkerArguments) -> Result<()> {
             return Ok(());
         }
     };
+    #[cfg(target_os = "linux")]
+    if let Err(error) = drop_linux_worker_capabilities() {
+        node.close().await;
+        return Err(error);
+    }
 
     let result = async {
         send_json(
@@ -427,16 +439,101 @@ where
 }
 
 #[cfg(target_os = "linux")]
+#[derive(Debug, Eq, PartialEq)]
+struct LinuxLaunch {
+    executable: PathBuf,
+    arguments: Vec<OsString>,
+}
+
+#[cfg(target_os = "linux")]
+impl LinuxLaunch {
+    fn elevated(executable: &Path, arguments: &[String]) -> Self {
+        let mut elevated_arguments = vec![
+            OsString::from("--disable-internal-agent"),
+            executable.as_os_str().to_owned(),
+        ];
+        elevated_arguments.extend(arguments.iter().map(OsString::from));
+        Self {
+            executable: PathBuf::from("pkexec"),
+            arguments: elevated_arguments,
+        }
+    }
+
+    fn elevated_flatpak(arguments: &[String], info_path: &Path) -> Result<Self> {
+        let info = gtk::glib::KeyFile::new();
+        info.load_from_file(info_path, gtk::glib::KeyFileFlags::NONE)
+            .with_context(|| format!("reading Flatpak metadata {}", info_path.display()))?;
+        let app_path = PathBuf::from(
+            info.string("Instance", "app-path")
+                .context("Flatpak metadata has no Instance/app-path")?
+                .as_str(),
+        );
+        let runtime_path = PathBuf::from(
+            info.string("Instance", "runtime-path")
+                .context("Flatpak metadata has no Instance/runtime-path")?
+                .as_str(),
+        );
+        ensure!(
+            app_path.is_absolute() && runtime_path.is_absolute(),
+            "Flatpak app and runtime paths must be absolute"
+        );
+
+        let (loader_name, library_triplet) = flatpak_linux_abi()?;
+        let loader = runtime_path
+            .join("lib")
+            .join(library_triplet)
+            .join(loader_name);
+        let worker = app_path.join("bin/drosophila");
+        let library_path = std::env::join_paths([
+            app_path.join("lib"),
+            app_path.join("lib").join(library_triplet),
+            app_path.join("lib64"),
+            runtime_path.join("lib"),
+            runtime_path.join("lib").join(library_triplet),
+            runtime_path.join("lib64"),
+        ])
+        .context("constructing the Flatpak runtime library path")?;
+
+        let mut host_arguments = vec![
+            OsString::from("--host"),
+            OsString::from("pkexec"),
+            OsString::from("--disable-internal-agent"),
+            loader.into_os_string(),
+            OsString::from("--library-path"),
+            library_path,
+            worker.into_os_string(),
+        ];
+        host_arguments.extend(arguments.iter().map(OsString::from));
+        Ok(Self {
+            executable: PathBuf::from("flatpak-spawn"),
+            arguments: host_arguments,
+        })
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn flatpak_linux_abi() -> Result<(&'static str, &'static str)> {
+    match std::env::consts::ARCH {
+        "x86_64" => Ok(("ld-linux-x86-64.so.2", "x86_64-linux-gnu")),
+        "aarch64" => Ok(("ld-linux-aarch64.so.1", "aarch64-linux-gnu")),
+        architecture => bail!("Flatpak TUN is not supported on Linux architecture {architecture}"),
+    }
+}
+
+#[cfg(target_os = "linux")]
 fn launch_elevated(
     executable: &Path,
     arguments: &[String],
     token: &str,
 ) -> Result<oneshot::Receiver<String>> {
-    let mut command = tokio::process::Command::new("pkexec");
+    let launch = if is_flatpak() {
+        LinuxLaunch::elevated_flatpak(arguments, Path::new("/.flatpak-info"))?
+    } else {
+        LinuxLaunch::elevated(executable, arguments)
+    };
+    let mut command = tokio::process::Command::new(&launch.executable);
     command
-        .arg("--disable-internal-agent")
-        .arg(executable)
-        .args(arguments)
+        .args(&launch.arguments)
         .stdin(Stdio::piped())
         .stdout(Stdio::null())
         .stderr(Stdio::null())
@@ -535,6 +632,19 @@ fn restrict_linux_worker_privileges() -> Result<()> {
         "the TUN worker failed to drop its root user ID"
     );
     Ok(())
+}
+
+#[cfg(target_os = "linux")]
+fn drop_linux_worker_capabilities() -> Result<()> {
+    use capctl::caps::CapState;
+
+    CapState {
+        effective: capctl::capset!(),
+        permitted: capctl::capset!(),
+        inheritable: capctl::capset!(),
+    }
+    .set_current()
+    .map_err(|error| anyhow!("dropping the worker's TUN capability: {error}"))
 }
 
 #[cfg(test)]

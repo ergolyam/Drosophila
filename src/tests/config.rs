@@ -25,15 +25,7 @@ fn legacy_proxy_switch_migrates_to_connection_mode() {
     assert_eq!(tun.mode, ConnectionMode::Tun);
 }
 
-#[cfg(not(feature = "tun"))]
 #[test]
-fn userspace_proxy_remains_available_without_tun() {
-    let mut config = GuiConfig {
-        mode: ConnectionMode::Proxy,
-        ..GuiConfig::default()
-    };
-    assert_eq!(config.effective_mode(), ConnectionMode::Proxy);
-
-    config.mode = ConnectionMode::Tun;
-    assert_eq!(config.effective_mode(), ConnectionMode::SystemProxy);
+fn connection_mode_defaults_to_tun() {
+    assert_eq!(GuiConfig::default().mode, ConnectionMode::Tun);
 }
