@@ -46,16 +46,7 @@ The binary is `target/release/drosophila`. For debug logs, run `cargo run --lock
 
 TUN uses `pkexec` on demand and requires a PolicyKit authentication agent. The GUI remains unprivileged; the worker retains only `CAP_NET_ADMIN`.
 
-Install the binary and its PolicyKit action:
-
-```bash
-sudo install -Dm0755 /path/to/drosophila /usr/local/bin/drosophila
-sudo install -Dm0644 \
-  xdg/io.github.ergolyam.Drosophila.policy \
-  /usr/share/polkit-1/actions/io.github.ergolyam.Drosophila.policy
-```
-
-The policy provides the application-specific prompt for binaries installed to `/usr/bin` or `/usr/local/bin`.
+Run the downloaded binary directly as a regular desktop user; no additional files or installation steps are required. When TUN is selected, Drosophila requests administrator authorization through `pkexec`.
 
 ## Flatpak build
 

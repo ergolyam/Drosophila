@@ -31,8 +31,6 @@ chmod +x ./Drosophila-*-linux-*
 ./Drosophila-*-linux-*
 ```
 
-Native binaries include TUN. See [Linux development](docs/development-linux.md#tun-access) for PolicyKit setup.
-
 ## Windows
 
 Download and run the installer from the [releases page](https://github.com/ergolyam/Drosophila/releases). Configuration is stored in the application directory.
