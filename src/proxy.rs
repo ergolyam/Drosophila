@@ -26,6 +26,7 @@ const ADDRESS_IPV4: u8 = 1;
 const ADDRESS_DOMAIN: u8 = 3;
 const ADDRESS_IPV6: u8 = 4;
 const HTTP_HEADER_LIMIT: usize = 64 * 1024;
+const RWC_READ_BUFFER_SIZE: usize = 65_536;
 
 pub struct UserspaceProxy {
     cancel: CancellationToken,
@@ -42,6 +43,9 @@ impl UserspaceProxy {
         listen: SocketAddr,
         dns_server: Option<SocketAddr>,
     ) -> Result<Self> {
+        let listener = TcpListener::bind(listen)
+            .await
+            .with_context(|| format!("binding local proxy to {listen}"))?;
         let (device, bridge_handles) = RwcDevice::new(rwc, mtu);
 
         let ip = IpAddress::Ipv6(Ipv6Address::from(address.octets()));
@@ -50,9 +54,6 @@ impl UserspaceProxy {
         let config = NetConfig::new(interface, IpCidr::new(ip, 7), vec![ip]);
         let net = Arc::new(Net::new(device, config));
 
-        let listener = TcpListener::bind(listen)
-            .await
-            .with_context(|| format!("binding local proxy to {listen}"))?;
         let cancel = CancellationToken::new();
         let task_cancel = cancel.clone();
         let task_net = net.clone();
@@ -123,34 +124,22 @@ struct RwcDevice {
 impl RwcDevice {
     fn new(rwc: Arc<ReadWriteCloser>, mtu: usize) -> (Self, Vec<JoinHandle<()>>) {
         let (incoming_tx, incoming) = mpsc::channel(128);
-        let (outgoing_tx, mut outgoing_rx) = mpsc::channel::<Packet>(128);
+        let (outgoing_tx, outgoing_rx) = mpsc::channel::<Packet>(128);
 
         let reader_rwc = rwc.clone();
         let reader = tokio::spawn(async move {
-            let mut buffer = vec![0_u8; 65_535];
+            let mut buffer = vec![0_u8; RWC_READ_BUFFER_SIZE];
             loop {
-                match reader_rwc.read(&mut buffer).await {
-                    Ok(size) => {
-                        if incoming_tx.send(Ok(buffer[..size].to_vec())).await.is_err() {
-                            break;
-                        }
-                    }
-                    Err(error) => {
-                        let _ = incoming_tx.send(Err(io::Error::other(error))).await;
-                        break;
-                    }
-                }
-            }
-        });
-
-        let writer = tokio::spawn(async move {
-            while let Some(packet) = outgoing_rx.recv().await {
-                if let Err(error) = rwc.write(&packet).await {
-                    tracing::debug!(%error, "userspace stack stopped writing packets");
+                if !forward_rwc_read(reader_rwc.read(&mut buffer).await, &incoming_tx).await {
                     break;
                 }
             }
         });
+
+        let writer = tokio::spawn(write_rwc_packets(outgoing_rx, move |packet| {
+            let rwc = rwc.clone();
+            async move { rwc.write(&packet).await }
+        }));
 
         let mut capabilities = DeviceCapabilities::default();
         capabilities.medium = Medium::Ip;
@@ -165,6 +154,31 @@ impl RwcDevice {
             },
             vec![reader, writer],
         )
+    }
+}
+
+async fn write_rwc_packets<F, Fut>(mut outgoing: mpsc::Receiver<Packet>, mut write: F)
+where
+    F: FnMut(Packet) -> Fut,
+    Fut: std::future::Future<Output = Result<usize, String>>,
+{
+    while let Some(packet) = outgoing.recv().await {
+        if let Err(error) = write(packet).await {
+            tracing::debug!(%error, "userspace stack dropped outgoing packet");
+        }
+    }
+}
+
+async fn forward_rwc_read(
+    result: Result<&[u8], String>,
+    incoming: &mpsc::Sender<io::Result<Packet>>,
+) -> bool {
+    match result {
+        Ok(packet) => incoming.send(Ok(packet.to_vec())).await.is_ok(),
+        Err(error) => {
+            let _ = incoming.send(Err(io::Error::other(error))).await;
+            false
+        }
     }
 }
 

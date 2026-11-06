@@ -27,7 +27,7 @@ toml = "1"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 url = "2"
-yggdrasil = { git = "https://github.com/Revertron/Yggdrasil-ng.git", rev = "3ac41c1977d6b309a3901aaf2e5db8fe22f27475", default-features = false, features = ["tun", "ws", "quic"] }
+yggdrasil = { git = "https://github.com/Revertron/Yggdrasil-ng.git", rev = "c3a3aa65e2eb14687f087adae9e0a35a7d7ce915", default-features = false, features = ["tun", "ws", "quic"] }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 capctl = "0.2"
