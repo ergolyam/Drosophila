@@ -2,8 +2,8 @@
     {
         "type": "git",
         "url": "https://github.com/revertron/yggdrasil-ng",
-        "commit": "3ac41c1977d6b309a3901aaf2e5db8fe22f27475",
-        "dest": "flatpak-cargo/git/yggdrasil-ng-3ac41c1"
+        "commit": "c3a3aa65e2eb14687f087adae9e0a35a7d7ce915",
+        "dest": "flatpak-cargo/git/yggdrasil-ng-c3a3aa6"
     },
     {
         "type": "archive",
@@ -229,14 +229,14 @@
     {
         "type": "archive",
         "archive-type": "tar-gzip",
-        "url": "https://static.crates.io/crates/blake2/blake2-0.10.6.crate",
-        "sha256": "46502ad458c9a52b69d4d4d32775c788b7a1b85e8bc9d482d92250fc0e3f8efe",
-        "dest": "cargo/vendor/blake2-0.10.6"
+        "url": "https://static.crates.io/crates/blake2/blake2-0.11.0.crate",
+        "sha256": "5b5d4d889834ee8ecfc0f8426ad30faf7cdcb10f741a8e6d7224d95325479f6f",
+        "dest": "cargo/vendor/blake2-0.11.0"
     },
     {
         "type": "inline",
-        "contents": "{\"package\": \"46502ad458c9a52b69d4d4d32775c788b7a1b85e8bc9d482d92250fc0e3f8efe\", \"files\": {}}",
-        "dest": "cargo/vendor/blake2-0.10.6",
+        "contents": "{\"package\": \"5b5d4d889834ee8ecfc0f8426ad30faf7cdcb10f741a8e6d7224d95325479f6f\", \"files\": {}}",
+        "dest": "cargo/vendor/blake2-0.11.0",
         "dest-filename": ".cargo-checksum.json"
     },
     {
@@ -437,6 +437,19 @@
     {
         "type": "archive",
         "archive-type": "tar-gzip",
+        "url": "https://static.crates.io/crates/cmov/cmov-0.5.4.crate",
+        "sha256": "0c9ea0ac24bc397ab3c98583a3c9ba74fa56b09a4449bbe172b9b1ddb016027a",
+        "dest": "cargo/vendor/cmov-0.5.4"
+    },
+    {
+        "type": "inline",
+        "contents": "{\"package\": \"0c9ea0ac24bc397ab3c98583a3c9ba74fa56b09a4449bbe172b9b1ddb016027a\", \"files\": {}}",
+        "dest": "cargo/vendor/cmov-0.5.4",
+        "dest-filename": ".cargo-checksum.json"
+    },
+    {
+        "type": "archive",
+        "archive-type": "tar-gzip",
         "url": "https://static.crates.io/crates/concurrent-queue/concurrent-queue-2.5.0.crate",
         "sha256": "4ca0197aee26d1ae37445ee532fefce43251d24cc7c166799f4d46817f1d3973",
         "dest": "cargo/vendor/concurrent-queue-2.5.0"
@@ -593,6 +606,19 @@
     {
         "type": "archive",
         "archive-type": "tar-gzip",
+        "url": "https://static.crates.io/crates/ctutils/ctutils-0.4.8.crate",
+        "sha256": "261af4dc7a06ea8a527a8717d8cbba3417530d6ea14e1edb3de6b67806be474f",
+        "dest": "cargo/vendor/ctutils-0.4.8"
+    },
+    {
+        "type": "inline",
+        "contents": "{\"package\": \"261af4dc7a06ea8a527a8717d8cbba3417530d6ea14e1edb3de6b67806be474f\", \"files\": {}}",
+        "dest": "cargo/vendor/ctutils-0.4.8",
+        "dest-filename": ".cargo-checksum.json"
+    },
+    {
+        "type": "archive",
+        "archive-type": "tar-gzip",
         "url": "https://static.crates.io/crates/curve25519-dalek/curve25519-dalek-4.1.3.crate",
         "sha256": "97fb8b7c4503de7d6ae7b42ab72a5a59857b4c937ec27a3d4539dba95b5ab2be",
         "dest": "cargo/vendor/curve25519-dalek-4.1.3"
@@ -601,6 +627,19 @@
         "type": "inline",
         "contents": "{\"package\": \"97fb8b7c4503de7d6ae7b42ab72a5a59857b4c937ec27a3d4539dba95b5ab2be\", \"files\": {}}",
         "dest": "cargo/vendor/curve25519-dalek-4.1.3",
+        "dest-filename": ".cargo-checksum.json"
+    },
+    {
+        "type": "archive",
+        "archive-type": "tar-gzip",
+        "url": "https://static.crates.io/crates/curve25519-dalek/curve25519-dalek-5.0.0.crate",
+        "sha256": "b5eed333089e2e1c1ac8c6c0398e5e2497b4c9926ca6d0365ed1e099afa5bc23",
+        "dest": "cargo/vendor/curve25519-dalek-5.0.0"
+    },
+    {
+        "type": "inline",
+        "contents": "{\"package\": \"b5eed333089e2e1c1ac8c6c0398e5e2497b4c9926ca6d0365ed1e099afa5bc23\", \"files\": {}}",
+        "dest": "cargo/vendor/curve25519-dalek-5.0.0",
         "dest-filename": ".cargo-checksum.json"
     },
     {
@@ -913,6 +952,19 @@
         "type": "inline",
         "contents": "{\"package\": \"28dea519a9695b9977216879a3ebfddf92f1c08c05d984f8996aecd6ecdc811d\", \"files\": {}}",
         "dest": "cargo/vendor/fiat-crypto-0.2.9",
+        "dest-filename": ".cargo-checksum.json"
+    },
+    {
+        "type": "archive",
+        "archive-type": "tar-gzip",
+        "url": "https://static.crates.io/crates/fiat-crypto/fiat-crypto-0.3.0.crate",
+        "sha256": "64cd1e32ddd350061ae6edb1b082d7c54915b5c672c389143b9a63403a109f24",
+        "dest": "cargo/vendor/fiat-crypto-0.3.0"
+    },
+    {
+        "type": "inline",
+        "contents": "{\"package\": \"64cd1e32ddd350061ae6edb1b082d7c54915b5c672c389143b9a63403a109f24\", \"files\": {}}",
+        "dest": "cargo/vendor/fiat-crypto-0.3.0",
         "dest-filename": ".cargo-checksum.json"
     },
     {
@@ -1750,12 +1802,12 @@
     {
         "type": "shell",
         "commands": [
-            "cp -r --reflink=auto \"flatpak-cargo/git/yggdrasil-ng-3ac41c1/crates/ironwood\" \"cargo/vendor/ironwood\""
+            "cp -r --reflink=auto \"flatpak-cargo/git/yggdrasil-ng-c3a3aa6/crates/ironwood\" \"cargo/vendor/ironwood\""
         ]
     },
     {
         "type": "inline",
-        "contents": "[package]\nname = \"ironwood\"\nversion = \"0.2.0\"\nedition = \"2024\"\ndescription = \"Routing library: ed25519-addressed PacketConn over spanning tree\"\nlicense = \"MPL-2.0\"\n\n[dependencies]\ncurve25519-dalek = \"4\"\ncrypto_box = \"0.9\"\nmurmur3 = \"0.5\"\nrand = \"0.8\"\nbytes = \"1\"\nthiserror = \"2\"\ntracing = \"0.1\"\nasync-trait = \"0.1\"\nsha2 = \"0.11.0\"\nhex = \"0.4.3\"\nrustc-hash = \"2.1.2\"\n\n[dependencies.tokio]\nversion = \"1\"\nfeatures = [\"full\"]\n\n[dependencies.ed25519-dalek]\nversion = \"2\"\nfeatures = [\"rand_core\"]\n\n[dependencies.tokio-util]\nversion = \"0.7\"\nfeatures = [\"rt\"]\n",
+        "contents": "[package]\nname = \"ironwood\"\nversion = \"0.2.2\"\nedition = \"2024\"\ndescription = \"Routing library: ed25519-addressed PacketConn over spanning tree\"\nlicense = \"MPL-2.0\"\n\n[dependencies]\ncurve25519-dalek = \"5.0.0\"\ncrypto_box = \"0.9\"\nmurmur3 = \"0.5\"\nrand = \"0.8\"\nbytes = \"1\"\nthiserror = \"2\"\ntracing = \"0.1\"\nasync-trait = \"0.1\"\nsha2 = \"0.11.0\"\nhex = \"0.4.3\"\nrustc-hash = \"2.1.2\"\n\n[dependencies.tokio]\nversion = \"1\"\nfeatures = [\"full\"]\n\n[dependencies.ed25519-dalek]\nversion = \"2\"\nfeatures = [\"rand_core\"]\n\n[dependencies.tokio-util]\nversion = \"0.7\"\nfeatures = [\"rt\"]\n",
         "dest": "cargo/vendor/ironwood",
         "dest-filename": "Cargo.toml"
     },
@@ -2600,19 +2652,6 @@
     {
         "type": "archive",
         "archive-type": "tar-gzip",
-        "url": "https://static.crates.io/crates/rand/rand-0.9.5.crate",
-        "sha256": "b9ef1d0d795eb7d84685bca4f72f3649f064e6641543d3a8c415898726a57b41",
-        "dest": "cargo/vendor/rand-0.9.5"
-    },
-    {
-        "type": "inline",
-        "contents": "{\"package\": \"b9ef1d0d795eb7d84685bca4f72f3649f064e6641543d3a8c415898726a57b41\", \"files\": {}}",
-        "dest": "cargo/vendor/rand-0.9.5",
-        "dest-filename": ".cargo-checksum.json"
-    },
-    {
-        "type": "archive",
-        "archive-type": "tar-gzip",
         "url": "https://static.crates.io/crates/rand/rand-0.10.2.crate",
         "sha256": "c7f5fa3a058cd35567ef9bfa5e75732bee0f9e4c55fa90477bef2dfcdbc4be80",
         "dest": "cargo/vendor/rand-0.10.2"
@@ -2639,19 +2678,6 @@
     {
         "type": "archive",
         "archive-type": "tar-gzip",
-        "url": "https://static.crates.io/crates/rand_chacha/rand_chacha-0.9.0.crate",
-        "sha256": "d3022b5f1df60f26e1ffddd6c66e8aa15de382ae63b3a0c1bfc0e4d3e3f325cb",
-        "dest": "cargo/vendor/rand_chacha-0.9.0"
-    },
-    {
-        "type": "inline",
-        "contents": "{\"package\": \"d3022b5f1df60f26e1ffddd6c66e8aa15de382ae63b3a0c1bfc0e4d3e3f325cb\", \"files\": {}}",
-        "dest": "cargo/vendor/rand_chacha-0.9.0",
-        "dest-filename": ".cargo-checksum.json"
-    },
-    {
-        "type": "archive",
-        "archive-type": "tar-gzip",
         "url": "https://static.crates.io/crates/rand_core/rand_core-0.6.4.crate",
         "sha256": "ec0be4795e2f6a28069bec0b5ff3e2ac9bafc99e6a9a7dc3547996c5c816922c",
         "dest": "cargo/vendor/rand_core-0.6.4"
@@ -2660,19 +2686,6 @@
         "type": "inline",
         "contents": "{\"package\": \"ec0be4795e2f6a28069bec0b5ff3e2ac9bafc99e6a9a7dc3547996c5c816922c\", \"files\": {}}",
         "dest": "cargo/vendor/rand_core-0.6.4",
-        "dest-filename": ".cargo-checksum.json"
-    },
-    {
-        "type": "archive",
-        "archive-type": "tar-gzip",
-        "url": "https://static.crates.io/crates/rand_core/rand_core-0.9.5.crate",
-        "sha256": "76afc826de14238e6e8c374ddcc1fa19e374fd8dd986b0d2af0d02377261d83c",
-        "dest": "cargo/vendor/rand_core-0.9.5"
-    },
-    {
-        "type": "inline",
-        "contents": "{\"package\": \"76afc826de14238e6e8c374ddcc1fa19e374fd8dd986b0d2af0d02377261d83c\", \"files\": {}}",
-        "dest": "cargo/vendor/rand_core-0.9.5",
         "dest-filename": ".cargo-checksum.json"
     },
     {
@@ -3094,14 +3107,14 @@
     {
         "type": "archive",
         "archive-type": "tar-gzip",
-        "url": "https://static.crates.io/crates/sha1/sha1-0.10.7.crate",
-        "sha256": "a978451301f4db1d02937a4ab3ccce137717b81826e79b7d49ffe3244a13c3b8",
-        "dest": "cargo/vendor/sha1-0.10.7"
+        "url": "https://static.crates.io/crates/sha1/sha1-0.11.0.crate",
+        "sha256": "aacc4cc499359472b4abe1bf11d0b12e688af9a805fa5e3016f9a386dc2d0214",
+        "dest": "cargo/vendor/sha1-0.11.0"
     },
     {
         "type": "inline",
-        "contents": "{\"package\": \"a978451301f4db1d02937a4ab3ccce137717b81826e79b7d49ffe3244a13c3b8\", \"files\": {}}",
-        "dest": "cargo/vendor/sha1-0.10.7",
+        "contents": "{\"package\": \"aacc4cc499359472b4abe1bf11d0b12e688af9a805fa5e3016f9a386dc2d0214\", \"files\": {}}",
+        "dest": "cargo/vendor/sha1-0.11.0",
         "dest-filename": ".cargo-checksum.json"
     },
     {
@@ -3549,14 +3562,14 @@
     {
         "type": "archive",
         "archive-type": "tar-gzip",
-        "url": "https://static.crates.io/crates/tokio-tungstenite/tokio-tungstenite-0.26.2.crate",
-        "sha256": "7a9daff607c6d2bf6c16fd681ccb7eecc83e4e2cdc1ca067ffaadfca5de7f084",
-        "dest": "cargo/vendor/tokio-tungstenite-0.26.2"
+        "url": "https://static.crates.io/crates/tokio-tungstenite/tokio-tungstenite-0.30.0.crate",
+        "sha256": "17a073bfed563fa236697a068031408a93cd9522e08abf9933ead3e73411bd71",
+        "dest": "cargo/vendor/tokio-tungstenite-0.30.0"
     },
     {
         "type": "inline",
-        "contents": "{\"package\": \"7a9daff607c6d2bf6c16fd681ccb7eecc83e4e2cdc1ca067ffaadfca5de7f084\", \"files\": {}}",
-        "dest": "cargo/vendor/tokio-tungstenite-0.26.2",
+        "contents": "{\"package\": \"17a073bfed563fa236697a068031408a93cd9522e08abf9933ead3e73411bd71\", \"files\": {}}",
+        "dest": "cargo/vendor/tokio-tungstenite-0.30.0",
         "dest-filename": ".cargo-checksum.json"
     },
     {
@@ -3783,14 +3796,14 @@
     {
         "type": "archive",
         "archive-type": "tar-gzip",
-        "url": "https://static.crates.io/crates/tungstenite/tungstenite-0.26.2.crate",
-        "sha256": "4793cb5e56680ecbb1d843515b23b6de9a75eb04b66643e256a396d43be33c13",
-        "dest": "cargo/vendor/tungstenite-0.26.2"
+        "url": "https://static.crates.io/crates/tungstenite/tungstenite-0.30.0.crate",
+        "sha256": "e48ac77174b19c110a50ab2128b24215ac9cb40e0e12e093fb602d175c569d22",
+        "dest": "cargo/vendor/tungstenite-0.30.0"
     },
     {
         "type": "inline",
-        "contents": "{\"package\": \"4793cb5e56680ecbb1d843515b23b6de9a75eb04b66643e256a396d43be33c13\", \"files\": {}}",
-        "dest": "cargo/vendor/tungstenite-0.26.2",
+        "contents": "{\"package\": \"e48ac77174b19c110a50ab2128b24215ac9cb40e0e12e093fb602d175c569d22\", \"files\": {}}",
+        "dest": "cargo/vendor/tungstenite-0.30.0",
         "dest-filename": ".cargo-checksum.json"
     },
     {
@@ -3869,19 +3882,6 @@
         "type": "inline",
         "contents": "{\"package\": \"ff67a8a4397373c3ef660812acab3268222035010ab8680ec4215f38ba3d0eed\", \"files\": {}}",
         "dest": "cargo/vendor/url-2.5.8",
-        "dest-filename": ".cargo-checksum.json"
-    },
-    {
-        "type": "archive",
-        "archive-type": "tar-gzip",
-        "url": "https://static.crates.io/crates/utf-8/utf-8-0.7.6.crate",
-        "sha256": "09cc8ee72d2a9becf2f2febe0205bbed8fc6615b7cb429ad062dc7b7ddd036a9",
-        "dest": "cargo/vendor/utf-8-0.7.6"
-    },
-    {
-        "type": "inline",
-        "contents": "{\"package\": \"09cc8ee72d2a9becf2f2febe0205bbed8fc6615b7cb429ad062dc7b7ddd036a9\", \"files\": {}}",
-        "dest": "cargo/vendor/utf-8-0.7.6",
         "dest-filename": ".cargo-checksum.json"
     },
     {
@@ -4745,12 +4745,12 @@
     {
         "type": "shell",
         "commands": [
-            "cp -r --reflink=auto \"flatpak-cargo/git/yggdrasil-ng-3ac41c1/crates/yggdrasil\" \"cargo/vendor/yggdrasil\""
+            "cp -r --reflink=auto \"flatpak-cargo/git/yggdrasil-ng-c3a3aa6/crates/yggdrasil\" \"cargo/vendor/yggdrasil\""
         ]
     },
     {
         "type": "inline",
-        "contents": "[package]\nname = \"yggdrasil\"\nversion = \"0.3.0\"\nedition = \"2024\"\ndescription = \"Yggdrasil mesh networking service\"\nlicense = \"MPL-2.0\"\n\n[package.metadata.deb]\nname = \"yggdrasil-ng\"\nmaintainer = \"Revertron\"\nsection = \"net\"\npriority = \"optional\"\ndepends = \"$auto, systemd\"\nconflicts = \"yggdrasil\"\nconf-files = [\"/etc/yggdrasil/yggdrasil.toml\"]\nmaintainer-scripts = \"../../contrib/deb\"\nassets = [[\"target/release/yggdrasil\", \"usr/bin/yggdrasil\", \"755\"], [\"../../contrib/systemd/yggdrasil.service\", \"lib/systemd/system/yggdrasil.service\", \"644\"], [\"../../contrib/systemd/yggdrasil.sysusers\", \"usr/lib/sysusers.d/yggdrasil.conf\", \"644\"]]\n\n[[bin]]\nname = \"yggdrasil\"\npath = \"src/main.rs\"\n\n[lib]\nname = \"yggdrasil\"\npath = \"src/lib.rs\"\n\n[dependencies]\nsalsa20 = \"0.10\"\nrand = \"0.8\"\nthiserror = \"2\"\nserde_json = \"1\"\nblake2 = \"0.10\"\ntracing = \"0.1\"\ngetopts = \"0.2\"\ntoml = \"1\"\ntoml_edit = \"0.25\"\nhex = \"0.4\"\nurl = \"2\"\nrcgen = \"0.14.7\"\nglob-match = \"0.2\"\nx509-parser = \"0.18\"\nsocket2 = \"0.6.5\"\ngetifaddrs = \"0.6\"\nrustc-hash = \"2.1.3\"\narc-swap = \"1.9\"\n\n[dependencies.ironwood]\npath = \"../ironwood\"\n\n[dependencies.tokio]\nversion = \"1\"\nfeatures = [\"full\"]\n\n[dependencies.ed25519-dalek]\nversion = \"2\"\nfeatures = [\"rand_core\", \"pkcs8\"]\n\n[dependencies.serde]\nversion = \"1\"\nfeatures = [\"derive\"]\n\n[dependencies.tracing-subscriber]\nversion = \"0.3\"\nfeatures = [\"env-filter\", \"local-time\"]\n\n[dependencies.time]\nversion = \"0.3.53\"\nfeatures = [\"macros\", \"local-offset\"]\n\n[dependencies.tokio-util]\nversion = \"0.7\"\nfeatures = [\"rt\"]\n\n[dependencies.tokio-rustls]\nversion = \"0.26\"\ndefault-features = false\nfeatures = [\"ring\"]\n\n[dependencies.rustls]\nversion = \"0.23\"\ndefault-features = false\nfeatures = [\"ring\", \"tls12\"]\n\n[dependencies.tokio-tungstenite]\nversion = \"0.26\"\noptional = true\n\n[dependencies.futures-util]\nversion = \"0.3\"\noptional = true\n\n[dependencies.quinn]\nversion = \"0.11\"\noptional = true\ndefault-features = false\nfeatures = [\"runtime-tokio\", \"rustls-ring\", \"log\"]\n\n[dependencies.ipnet]\nversion = \"2\"\n\n[dependencies.tun-rs]\nversion = \"2.8.7\"\nfeatures = [\"async_tokio\"]\noptional = true\n\n[features]\ndefault = [\"ctl\", \"tun\", \"systemd\", \"ckr\", \"ws\", \"quic\"]\nctl = []\ntun = [\"dep:tun-rs\"]\nckr = [\"dep:route_manager\"]\nsystemd = [\"dep:sd-notify\"]\nws = [\"dep:tokio-tungstenite\", \"dep:futures-util\"]\nquic = [\"dep:quinn\"]\n\n[target.\"cfg(not(target_os = \\\"android\\\"))\".dependencies.route_manager]\nversion = \"0.2\"\noptional = true\n\n[target.\"cfg(windows)\".dependencies]\nwindows-service = \"0.8.0\"\n\n[target.\"cfg(windows)\".dependencies.windows]\nversion = \"0.62.2\"\nfeatures = [\"Win32_NetworkManagement_IpHelper\", \"Win32_System_LibraryLoader\", \"Win32_Foundation\"]\n\n[target.\"cfg(target_os = \\\"linux\\\")\".dependencies.sd-notify]\nversion = \"0.5.0\"\noptional = true\n",
+        "contents": "[package]\nname = \"yggdrasil\"\nversion = \"0.3.2\"\nedition = \"2024\"\ndescription = \"Yggdrasil mesh networking service\"\nlicense = \"MPL-2.0\"\n\n[package.metadata.deb]\nname = \"yggdrasil-ng\"\nmaintainer = \"Revertron\"\nsection = \"net\"\npriority = \"optional\"\ndepends = \"$auto, systemd\"\nconflicts = \"yggdrasil\"\nconf-files = [\"/etc/yggdrasil/yggdrasil.toml\"]\nmaintainer-scripts = \"../../contrib/deb\"\nassets = [[\"target/release/yggdrasil\", \"usr/bin/yggdrasil\", \"755\"], [\"../../contrib/systemd/yggdrasil.service\", \"lib/systemd/system/yggdrasil.service\", \"644\"], [\"../../contrib/systemd/yggdrasil.sysusers\", \"usr/lib/sysusers.d/yggdrasil.conf\", \"644\"]]\n\n[[bin]]\nname = \"yggdrasil\"\npath = \"src/main.rs\"\n\n[lib]\nname = \"yggdrasil\"\npath = \"src/lib.rs\"\n\n[dependencies]\nsalsa20 = \"0.10\"\nrand = \"0.8\"\nthiserror = \"2\"\nserde_json = \"1\"\nblake2 = \"0.11.0\"\ntracing = \"0.1\"\ngetopts = \"0.2\"\ntoml = \"1\"\ntoml_edit = \"0.25\"\nhex = \"0.4\"\nurl = \"2\"\nrcgen = \"0.14.7\"\nglob-match = \"0.2\"\nx509-parser = \"0.18\"\nsocket2 = \"0.6.5\"\ngetifaddrs = \"0.6\"\nrustc-hash = \"2.1.3\"\narc-swap = \"1.9\"\n\n[dependencies.ironwood]\npath = \"../ironwood\"\n\n[dependencies.tokio]\nversion = \"1\"\nfeatures = [\"full\"]\n\n[dependencies.ed25519-dalek]\nversion = \"2\"\nfeatures = [\"rand_core\", \"pkcs8\"]\n\n[dependencies.serde]\nversion = \"1\"\nfeatures = [\"derive\"]\n\n[dependencies.tracing-subscriber]\nversion = \"0.3\"\nfeatures = [\"env-filter\", \"local-time\"]\n\n[dependencies.time]\nversion = \"0.3\"\nfeatures = [\"macros\", \"local-offset\"]\n\n[dependencies.tokio-util]\nversion = \"0.7\"\nfeatures = [\"rt\"]\n\n[dependencies.tokio-rustls]\nversion = \"0.26\"\ndefault-features = false\nfeatures = [\"ring\"]\n\n[dependencies.rustls]\nversion = \"0.23\"\ndefault-features = false\nfeatures = [\"ring\", \"tls12\"]\n\n[dependencies.terminal_size]\nversion = \"0.4\"\noptional = true\n\n[dependencies.tokio-tungstenite]\nversion = \"0.30.0\"\noptional = true\n\n[dependencies.futures-util]\nversion = \"0.3\"\noptional = true\n\n[dependencies.quinn]\nversion = \"0.11\"\noptional = true\ndefault-features = false\nfeatures = [\"runtime-tokio\", \"rustls-ring\", \"log\"]\n\n[dependencies.ipnet]\nversion = \"2\"\n\n[dependencies.tun-rs]\nversion = \"2.8.7\"\nfeatures = [\"async_tokio\"]\noptional = true\n\n[features]\ndefault = [\"ctl\", \"tun\", \"systemd\", \"ckr\", \"ws\", \"quic\"]\nctl = [\"dep:terminal_size\"]\ntun = [\"dep:tun-rs\"]\nckr = [\"dep:route_manager\"]\nsystemd = [\"dep:sd-notify\"]\nws = [\"dep:tokio-tungstenite\", \"dep:futures-util\"]\nquic = [\"dep:quinn\"]\n\n[target.\"cfg(not(target_os = \\\"android\\\"))\".dependencies.route_manager]\nversion = \"0.2\"\noptional = true\n\n[target.\"cfg(windows)\".dependencies]\nwindows-service = \"0.8.0\"\n\n[target.\"cfg(windows)\".dependencies.windows]\nversion = \"0.62.2\"\nfeatures = [\"Win32_NetworkManagement_IpHelper\", \"Win32_System_LibraryLoader\", \"Win32_Foundation\"]\n\n[target.\"cfg(unix)\".dependencies]\nlibc = \"0.2\"\n\n[target.\"cfg(target_os = \\\"linux\\\")\".dependencies.sd-notify]\nversion = \"0.5.0\"\noptional = true\n",
         "dest": "cargo/vendor/yggdrasil",
         "dest-filename": "Cargo.toml"
     },
@@ -4905,7 +4905,7 @@
     },
     {
         "type": "inline",
-        "contents": "[source.vendored-sources]\ndirectory = \"cargo/vendor\"\n\n[source.crates-io]\nreplace-with = \"vendored-sources\"\n\n[source.\"https://github.com/revertron/yggdrasil-ng\"]\ngit = \"https://github.com/revertron/yggdrasil-ng\"\nreplace-with = \"vendored-sources\"\nrev = \"3ac41c1977d6b309a3901aaf2e5db8fe22f27475\"\n",
+        "contents": "[source.vendored-sources]\ndirectory = \"cargo/vendor\"\n\n[source.crates-io]\nreplace-with = \"vendored-sources\"\n\n[source.\"https://github.com/revertron/yggdrasil-ng\"]\ngit = \"https://github.com/revertron/yggdrasil-ng\"\nreplace-with = \"vendored-sources\"\nrev = \"c3a3aa65e2eb14687f087adae9e0a35a7d7ce915\"\n",
         "dest": "cargo",
         "dest-filename": "config"
     }

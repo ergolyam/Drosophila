@@ -6,7 +6,8 @@ use std::thread;
 use std::time::Duration;
 
 use anyhow::{Context, Result, anyhow, bail};
-use tokio::sync::mpsc;
+use tokio::sync::{Mutex as AsyncMutex, mpsc};
+use tokio::task::JoinHandle;
 use yggdrasil::core::Core;
 use yggdrasil::ipv6rwc::ReadWriteCloser;
 use yggdrasil::tun::TunAdapter;
@@ -322,6 +323,8 @@ impl ActiveNode {
 
 pub(crate) struct RunningNode {
     core: Arc<Core>,
+    pending_peers: AsyncMutex<HashMap<String, JoinHandle<Result<(), String>>>>,
+    peer_key_sync: JoinHandle<()>,
     tun: Option<TunAdapter>,
     proxy: Option<UserspaceProxy>,
     system_proxy: Option<SystemProxy>,
@@ -359,15 +362,37 @@ impl RunningNode {
             .map_err(|error| anyhow!(error))
             .context("invalid private key")?;
 
+        let peers = std::mem::take(&mut stored.yggdrasil.peers);
         let core = Core::new(signing_key, stored.yggdrasil.clone());
         core.init_links().await;
-        core.start().await;
+        for address in &stored.yggdrasil.listen {
+            if let Err(error) = core.listen(address).await {
+                tracing::error!(%address, %error, "failed to start listener");
+            }
+        }
+        let mut pending_peers = HashMap::new();
+        for peer in peers {
+            if pending_peers.contains_key(&peer) {
+                continue;
+            }
+            let peer_core = core.clone();
+            let peer_uri = peer.clone();
+            let handle = tokio::spawn(async move {
+                let result = peer_core.add_peer(&peer_uri).await;
+                if let Err(error) = &result {
+                    tracing::error!(peer = %peer_uri, %error, "failed to add peer");
+                }
+                result
+            });
+            pending_peers.insert(peer, handle);
+        }
 
         let address = core.address().to_string();
         let subnet = core.subnet().to_string();
         let mtu = core.mtu();
         let rwc = ReadWriteCloser::new(core.clone(), mtu, None);
         core.set_path_notify(rwc.clone());
+        let rwc_for_sync = rwc.clone();
 
         if let Err(error) = core.start_multicast().await {
             tracing::warn!(%error, "multicast peer discovery is unavailable");
@@ -386,10 +411,13 @@ impl RunningNode {
                     &stored.yggdrasil.if_dns_servers,
                 )
                 .await
-                .map(|tun| StartedTransports {
-                    tun: Some(tun),
-                    proxy: None,
-                    system_proxy: None,
+                .map(|tun| {
+                    core.set_tun_info(tun.name(), u64::from(tun.mtu()));
+                    StartedTransports {
+                        tun: Some(tun),
+                        proxy: None,
+                        system_proxy: None,
+                    }
                 })
                 .map_err(anyhow::Error::msg)
             }
@@ -400,14 +428,36 @@ impl RunningNode {
         let transports = match result {
             Ok(value) => value,
             Err(error) => {
+                abort_pending_peers(pending_peers).await;
                 core.close_multicast().await;
                 let _ = core.close().await;
                 return Err(error);
             }
         };
 
+        let sync_core = core.clone();
+        let sync_rwc = rwc_for_sync;
+        let peer_key_sync = tokio::spawn(async move {
+            let mut interval = tokio::time::interval(Duration::from_secs(2));
+            let mut cleanup = tokio::time::interval(Duration::from_secs(60));
+            interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+            cleanup.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+            loop {
+                tokio::select! {
+                    _ = interval.tick() => {
+                        for key in sync_core.get_peer_keys().await {
+                            sync_rwc.update_key(key).await;
+                        }
+                    }
+                    _ = cleanup.tick() => sync_rwc.cleanup().await,
+                }
+            }
+        });
+
         Ok(Self {
             core,
+            pending_peers: AsyncMutex::new(pending_peers),
+            peer_key_sync,
             tun: transports.tun,
             proxy: transports.proxy,
             system_proxy: transports.system_proxy,
@@ -426,11 +476,32 @@ impl RunningNode {
     }
 
     pub(crate) async fn add_peer(&self, peer: &str) -> Result<(), String> {
+        let mut pending = self.pending_peers.lock().await;
+        if let Some(handle) = pending.get(peer) {
+            if !handle.is_finished() {
+                return Err("peer already exists".to_owned());
+            }
+        }
+        if let Some(handle) = pending.remove(peer) {
+            let _ = handle.await;
+        }
         self.core.add_peer(peer).await
     }
 
     pub(crate) async fn remove_peer(&self, peer: &str) -> Result<(), String> {
-        self.core.remove_peer(peer).await
+        let mut pending = self.pending_peers.lock().await;
+        let had_pending = if let Some(handle) = pending.remove(peer) {
+            let unfinished = !handle.is_finished();
+            handle.abort();
+            let _ = handle.await;
+            unfinished
+        } else {
+            false
+        };
+        match self.core.remove_peer(peer).await {
+            Err(error) if had_pending && error == "peer not found" => Ok(()),
+            result => result,
+        }
     }
 
     pub(crate) async fn peer_status(&self) -> HashMap<String, bool> {
@@ -449,11 +520,23 @@ impl RunningNode {
         if let Some(proxy) = self.proxy.take() {
             proxy.close().await;
         }
+        abort_pending_peers(self.pending_peers.into_inner()).await;
+        self.peer_key_sync.abort();
+        let _ = self.peer_key_sync.await;
         self.core.close_multicast().await;
-        let _ = self.core.close().await;
         if let Some(tun) = self.tun.take() {
             tun.close().await;
         }
+        let _ = self.core.close().await;
+    }
+}
+
+async fn abort_pending_peers(pending: HashMap<String, JoinHandle<Result<(), String>>>) {
+    for handle in pending.values() {
+        handle.abort();
+    }
+    for handle in pending.into_values() {
+        let _ = handle.await;
     }
 }
 
