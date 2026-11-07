@@ -6,14 +6,14 @@
 - MSYS2
 - 7-Zip
 
-Open an **MSYS2 MINGW64** shell and install:
+Open an **MSYS2 UCRT64** shell and install:
 
 ```bash
 pacman -Syu
 pacman -S --needed \
-  mingw-w64-x86_64-libadwaita \
-  mingw-w64-x86_64-pkgconf \
-  mingw-w64-x86_64-rust
+  mingw-w64-ucrt-x86_64-libadwaita \
+  mingw-w64-ucrt-x86_64-pkgconf \
+  mingw-w64-ucrt-x86_64-rust
 ```
 
 ## Build

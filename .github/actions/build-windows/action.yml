@@ -20,9 +20,9 @@ runs:
     - name: Setup MSYS2
       uses: msys2/setup-msys2@v2
       env:
-        MSYS2_PREFIX: ${{ inputs.arch-type == 'aarch64' && 'clang-aarch64' || 'x86_64' }}
+        MSYS2_PREFIX: ${{ inputs.arch-type == 'aarch64' && 'clang-aarch64' || 'ucrt-x86_64' }}
       with:
-        msystem: ${{ inputs.arch-type == 'aarch64' && 'CLANGARM64' || 'MINGW64' }}
+        msystem: ${{ inputs.arch-type == 'aarch64' && 'CLANGARM64' || 'UCRT64' }}
         update: true
         install: >-
           mingw-w64-${{ env.MSYS2_PREFIX }}-libadwaita
@@ -67,10 +67,11 @@ runs:
         cp -r "${MINGW_PREFIX}/share/libadwaita" "${bundle_dir}/share/" 2>/dev/null || true
         cp -r "${MINGW_PREFIX}/lib/gdk-pixbuf-2.0/2.10.0/loaders" "${bundle_dir}/lib/gdk-pixbuf-2.0/2.10.0/"
 
+        set -o pipefail
         ntldd -R -D "${MINGW_PREFIX}/bin" \
           "${bundle_dir}/Drosophila.exe" \
           "${bundle_dir}/lib/gdk-pixbuf-2.0/2.10.0/loaders/"*.dll \
-          | awk '/=> .*\\(mingw64|clangarm64)\\/ { print $3 }' \
+          | awk '/=> .*\\(ucrt64|clangarm64)\\/ { print $3; found = 1 } END { if (!found) exit 1 }' \
           | while IFS= read -r windows_dll_path; do
             dll_path="$(cygpath --unix "${windows_dll_path}")"
             target_path="${bundle_dir}/$(basename "${dll_path}")"
