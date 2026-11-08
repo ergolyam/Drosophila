@@ -51,6 +51,6 @@ Run the downloaded binary directly as a regular desktop user; no additional file
 ## Flatpak build
 
 ```bash
-flatpak-builder --user --install --force-clean build-dir flatpak/io.github.ergolyam.Drosophila.yml
+flatpak-builder --user --install --install-deps-from=flathub --force-clean build-dir flatpak/io.github.ergolyam.Drosophila.yml
 flatpak run io.github.ergolyam.Drosophila
 ```

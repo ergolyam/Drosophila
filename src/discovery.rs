@@ -1,10 +1,15 @@
-use std::collections::{HashMap, HashSet};
-use std::time::{Duration, Instant};
+use std::collections::{HashMap, HashSet, VecDeque};
+use std::future::Future;
+use std::net::IpAddr;
+use std::process::Stdio;
+use std::time::Duration;
 
 use anyhow::{Context, Result, anyhow};
-use futures::{StreamExt, stream};
+use futures::{StreamExt, stream, stream::FuturesUnordered};
 use serde::Deserialize;
-use tokio::net::TcpStream;
+use tokio::io::AsyncWriteExt;
+use tokio::net::lookup_host;
+use tokio::process::Command;
 use url::Url;
 
 const SOURCES: [&str; 2] = [
@@ -26,13 +31,14 @@ pub struct DiscoveredPeer {
 struct PeerMetadata {
     #[serde(default)]
     up: bool,
-    #[serde(default)]
-    response_ms: u64,
 }
 
 type PublicNodes = HashMap<String, HashMap<String, PeerMetadata>>;
 
-pub async fn discover_peers(protocols: &[String]) -> Result<Vec<DiscoveredPeer>> {
+pub async fn discover_peers(
+    protocols: &[String],
+    on_peer: impl Fn(DiscoveredPeer) + Send + Sync,
+) -> Result<Vec<DiscoveredPeer>> {
     let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(10))
         .user_agent(concat!("Drosophila/", env!("CARGO_PKG_VERSION")))
@@ -60,12 +66,67 @@ pub async fn discover_peers(protocols: &[String]) -> Result<Vec<DiscoveredPeer>>
         .ok_or_else(|| last_error.unwrap_or_else(|| anyhow!("all public peer sources failed")))?;
 
     let peers = build_candidates(nodes, protocols);
-    let mut available: Vec<_> = stream::iter(peers)
-        .map(probe_peer)
-        .buffer_unordered(20)
-        .filter_map(|peer| async move { peer })
-        .collect()
-        .await;
+    let executable = std::env::current_exe().context("locating peer probe executable")?;
+    check_candidates(
+        peers,
+        |peer| probe_peer(peer, &executable),
+        |peer| async move { ping_peer(&peer).await },
+        on_peer,
+    )
+    .await
+}
+
+async fn check_candidates<P, PF, I, IF, C>(
+    peers: Vec<DiscoveredPeer>,
+    probe: P,
+    ping: I,
+    on_peer: C,
+) -> Result<Vec<DiscoveredPeer>>
+where
+    P: Fn(DiscoveredPeer) -> PF,
+    PF: Future<Output = Result<Option<DiscoveredPeer>>>,
+    I: Fn(DiscoveredPeer) -> IF,
+    IF: Future<Output = Option<u64>>,
+    C: Fn(DiscoveredPeer),
+{
+    let probes = stream::iter(peers).map(probe).buffer_unordered(32);
+    futures::pin_mut!(probes);
+    let mut pending_pings = VecDeque::new();
+    let mut pings = FuturesUnordered::new();
+    let mut probes_finished = false;
+    let mut available = Vec::new();
+    loop {
+        while pings.len() < 32 {
+            let Some(mut peer): Option<DiscoveredPeer> = pending_pings.pop_front() else {
+                break;
+            };
+            let future = ping(peer.clone());
+            pings.push(async move {
+                peer.ping_ms = future.await;
+                peer
+            });
+        }
+        if probes_finished && pings.is_empty() && pending_pings.is_empty() {
+            break;
+        }
+        tokio::select! {
+            result = probes.next(), if !probes_finished => match result {
+                Some(Ok(Some(peer))) => {
+                    on_peer(peer.clone());
+                    pending_pings.push_back(peer);
+                }
+                Some(Ok(None)) => {}
+                Some(Err(error)) => return Err(error),
+                None => probes_finished = true,
+            },
+            Some(peer) = pings.next(), if !pings.is_empty() => {
+                if peer.ping_ms.is_some() {
+                    on_peer(peer.clone());
+                }
+                available.push(peer);
+            }
+        }
+    }
     available.sort_by_key(|peer| (peer.ping_ms.unwrap_or(u64::MAX), peer.country.clone()));
     Ok(available)
 }
@@ -81,6 +142,9 @@ fn build_candidates(nodes: PublicNodes, protocols: &[String]) -> Vec<DiscoveredP
                 continue;
             }
             if !seen.insert(address.clone()) {
+                continue;
+            }
+            if address.chars().any(char::is_control) || address.len() > 8192 {
                 continue;
             }
             let Ok(parsed) = Url::parse(&address) else {
@@ -101,29 +165,129 @@ fn build_candidates(nodes: PublicNodes, protocols: &[String]) -> Vec<DiscoveredP
                 host: host.to_owned(),
                 port,
                 country: country.clone(),
-                ping_ms: (metadata.response_ms > 0).then_some(metadata.response_ms),
+                ping_ms: None,
             });
         }
     }
     peers
 }
 
-async fn probe_peer(mut peer: DiscoveredPeer) -> Option<DiscoveredPeer> {
-    if peer.protocol == "quic" {
-        return Some(peer);
+async fn probe_peer(
+    peer: DiscoveredPeer,
+    executable: &std::path::Path,
+) -> Result<Option<DiscoveredPeer>> {
+    if !probe_yggdrasil(executable, &peer.address).await? {
+        return Ok(None);
     }
+    Ok(Some(peer))
+}
 
-    let started = Instant::now();
-    let connected = tokio::time::timeout(
-        Duration::from_secs(3),
-        TcpStream::connect((peer.host.as_str(), peer.port)),
-    )
+async fn probe_yggdrasil(executable: &std::path::Path, address: &str) -> Result<bool> {
+    let result = tokio::time::timeout(Duration::from_secs(20), async {
+        let mut command = Command::new(executable);
+        command
+            .arg("--peer-probe")
+            .stdin(Stdio::piped())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .kill_on_drop(true);
+        #[cfg(windows)]
+        command.creation_flags(0x0800_0000);
+        let mut child = command.spawn()?;
+        if let Some(mut stdin) = child.stdin.take() {
+            if stdin.write_all(address.as_bytes()).await.is_err() || stdin.shutdown().await.is_err()
+            {
+                return Ok(false);
+            }
+        }
+        child.wait().await.map(|status| status.success())
+    })
+    .await;
+    match result {
+        Ok(result) => result.context("running peer probe"),
+        Err(_) => Ok(false),
+    }
+}
+
+async fn ping_peer(peer: &DiscoveredPeer) -> Option<u64> {
+    tokio::time::timeout(Duration::from_secs(5), async {
+        let host = peer.host.trim_start_matches('[').trim_end_matches(']');
+        let addresses = lookup_host((host, peer.port)).await.ok()?;
+        for address in addresses {
+            if let Some(ping) = ping_address(address.ip()).await {
+                return Some(ping);
+            }
+        }
+        None
+    })
     .await
-    .ok()?
-    .ok()?;
-    drop(connected);
-    peer.ping_ms = Some(started.elapsed().as_millis().try_into().unwrap_or(u64::MAX));
-    Some(peer)
+    .ok()
+    .flatten()
+}
+
+async fn ping_address(address: IpAddr) -> Option<u64> {
+    #[cfg(target_os = "linux")]
+    let mut command = if std::env::var_os("FLATPAK_ID").is_some() {
+        let mut command = Command::new("flatpak-spawn");
+        command.args(["--host", "--watch-bus", "--env=LC_ALL=C", "ping"]);
+        command
+    } else {
+        Command::new("ping")
+    };
+    #[cfg(not(target_os = "linux"))]
+    let mut command = Command::new("ping");
+    command.kill_on_drop(true);
+    command.env("LC_ALL", "C");
+    #[cfg(windows)]
+    {
+        command.creation_flags(0x0800_0000);
+        command.args(["-n", "1", "-w", "3000"]);
+    }
+    #[cfg(not(windows))]
+    command.args(["-n", "-c", "1", "-W", "3"]);
+    command.arg(address.to_string());
+    let output = command.output().await.ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    parse_ping_output(&String::from_utf8_lossy(&output.stdout))
+}
+
+fn parse_ping_output(output: &str) -> Option<u64> {
+    for line in output.lines() {
+        let lower = line.to_ascii_lowercase();
+        if let Some(position) = lower.find("time=").or_else(|| lower.find("time<")) {
+            let value = lower[position + 5..].trim_start();
+            if let Some(end) =
+                value.find(|character: char| !character.is_ascii_digit() && character != '.')
+                && value[end..].trim_start().starts_with("ms")
+                && let Some(millis) = parse_millis(&value[..end])
+            {
+                return Some(millis);
+            }
+        }
+        #[cfg(windows)]
+        if let Some(position) = lower.find("ttl=") {
+            let prefix = &lower[..position];
+            if let Some(separator) = prefix.rfind(['=', '<']) {
+                let value = prefix[separator + 1..].trim_start();
+                let end = value
+                    .find(|character: char| {
+                        !character.is_ascii_digit() && character != '.' && character != ','
+                    })
+                    .unwrap_or(value.len());
+                if let Some(millis) = parse_millis(&value[..end].replace(',', ".")) {
+                    return Some(millis);
+                }
+            }
+        }
+    }
+    None
+}
+
+fn parse_millis(number: &str) -> Option<u64> {
+    let millis: f64 = number.parse().ok()?;
+    (millis.is_finite() && millis >= 0.0 && millis < u64::MAX as f64).then(|| millis.ceil() as u64)
 }
 
 #[cfg(test)]

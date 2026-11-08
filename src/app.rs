@@ -427,11 +427,21 @@ impl Ui {
     fn start_event_pump(self: &Rc<Self>) {
         let ui = self.clone();
         glib::timeout_add_local(Duration::from_millis(100), move || {
-            while let Ok(event) = ui.events.borrow().try_recv() {
-                ui.handle_backend_event(event);
+            ui.drain_events();
+            let dialog = ui.discovery.borrow().clone();
+            if let Some(dialog) = dialog {
+                dialog.flush_discovered_peers();
             }
             ControlFlow::Continue
         });
+    }
+
+    fn drain_events(self: &Rc<Self>) {
+        loop {
+            let event = self.events.borrow().try_recv();
+            let Ok(event) = event else { break };
+            self.handle_backend_event(event);
+        }
     }
 
     fn handle_backend_event(self: &Rc<Self>, event: BackendEvent) {
@@ -467,9 +477,18 @@ impl Ui {
                 self.show_error("Yggdrasil-ng Error", &message);
             }
             BackendEvent::PeerStatus(status) => self.apply_peer_status(&status),
+            BackendEvent::DiscoveryPeer { id, peer } => {
+                let dialog = self.discovery.borrow().clone();
+                if let Some(dialog) = dialog
+                    && dialog.accepts_event(id)
+                {
+                    dialog.add_discovered_peer(peer);
+                }
+            }
             BackendEvent::DiscoveryFinished { id, result } => {
-                if let Some(dialog) = self.discovery.borrow().as_ref()
-                    && dialog.id.get() == id
+                let dialog = self.discovery.borrow().clone();
+                if let Some(dialog) = dialog
+                    && dialog.accepts_event(id)
                 {
                     dialog.set_result(result);
                 }
@@ -655,7 +674,7 @@ impl Ui {
         let domain_error: gtk::Label = object(&builder, "domain_error").unwrap();
         let sni_error: gtk::Label = object(&builder, "sni_error").unwrap();
 
-        if let Some(peer) = prefill {
+        if let Some(peer) = prefill.as_ref() {
             let selected = PROTOCOLS
                 .iter()
                 .position(|value| *value == peer.protocol)
@@ -725,7 +744,8 @@ impl Ui {
                 }
                 let Some(ui) = weak.upgrade() else { return };
                 let proto = PROTOCOLS[protocol.selected() as usize];
-                if let Some(peer) = build_peer_uri(
+                if let Some(peer) = build_discovered_peer_uri(
+                    prefill.as_ref(),
                     proto,
                     domain.text().trim(),
                     sni.text().trim(),
@@ -763,9 +783,11 @@ struct DiscoveryDialog {
     progress_label: gtk::Label,
     refresh_button: gtk::Button,
     filters: Vec<(String, gtk::CheckButton)>,
-    peers: RefCell<Vec<DiscoveredPeer>>,
+    peers: RefCell<DiscoveryPeers>,
     visible: RefCell<Vec<DiscoveredPeer>>,
     id: Cell<u64>,
+    searching: Cell<bool>,
+    search_error: RefCell<Option<String>>,
     request_protocols: RefCell<Vec<String>>,
 }
 
@@ -791,9 +813,11 @@ impl DiscoveryDialog {
             progress_label: object(&builder, "peer_discovery_progress_label").unwrap(),
             refresh_button: object(&builder, "refresh_peers_btn").unwrap(),
             filters,
-            peers: RefCell::new(Vec::new()),
+            peers: RefCell::new(DiscoveryPeers::default()),
             visible: RefCell::new(Vec::new()),
             id: Cell::new(0),
+            searching: Cell::new(false),
+            search_error: RefCell::new(None),
             request_protocols: RefCell::new(Vec::new()),
         });
         this.connect();
@@ -808,7 +832,7 @@ impl DiscoveryDialog {
                 let weak = Rc::downgrade(self);
                 move |_| {
                     if let Some(dialog) = weak.upgrade() {
-                        dialog.refresh_list();
+                        dialog.start(false);
                     }
                 }
             });
@@ -817,7 +841,10 @@ impl DiscoveryDialog {
             let weak = Rc::downgrade(self);
             move |_| {
                 if let Some(dialog) = weak.upgrade() {
-                    dialog.refresh_list();
+                    let has_peers = !dialog.peers.borrow().entries.is_empty();
+                    if has_peers {
+                        dialog.refresh_list();
+                    }
                 }
             }
         });
@@ -847,6 +874,11 @@ impl DiscoveryDialog {
                 {
                     app.open_add_peer_dialog(Some(peer));
                 }
+                app.discovery_cache
+                    .borrow_mut()
+                    .close_dialog(dialog.searching.get());
+                dialog.searching.set(false);
+                app.backend.cancel_discovery();
                 *app.discovery.borrow_mut() = None;
             }
         });
@@ -865,65 +897,116 @@ impl DiscoveryDialog {
             return;
         };
         let protocols = self.selected_protocols();
+        self.cache_partial(&app);
+        self.searching.set(false);
+        *self.search_error.borrow_mut() = None;
+        app.backend.cancel_discovery();
+        let id = app.next_discovery_id.get();
+        app.next_discovery_id.set(id.wrapping_add(1));
+        self.id.set(id);
+        (*self.request_protocols.borrow_mut()).clone_from(&protocols);
+        *self.peers.borrow_mut() = DiscoveryPeers::default();
+        self.visible.borrow_mut().clear();
+        while let Some(child) = self.list.first_child() {
+            self.list.remove(&child);
+        }
+        self.dialog.set_response_enabled("use", false);
+        self.progress_box.set_visible(true);
+        self.spinner.stop();
+        self.spinner.set_visible(false);
+        self.refresh_button.set_sensitive(!protocols.is_empty());
         if protocols.is_empty() {
             self.progress_label
                 .set_label("Select at least one protocol");
             return;
         }
-        (*self.request_protocols.borrow_mut()).clone_from(&protocols);
-        if !refresh && let Some(peers) = app.discovery_cache.borrow().get(&protocols) {
-            *self.peers.borrow_mut() = peers.to_vec();
-            self.refresh_list();
-            self.progress_box.set_visible(true);
-            self.spinner.stop();
-            self.spinner.set_visible(false);
-            return;
+        if refresh {
+            app.discovery_cache.borrow_mut().clear();
+        } else {
+            let cached = app.discovery_cache.borrow().get(&protocols).cloned();
+            if let Some(cached) = cached {
+                self.peers.borrow_mut().entries = cached.peers;
+                self.refresh_list();
+                if cached.complete {
+                    return;
+                }
+            }
         }
-        let id = app.next_discovery_id.get();
-        app.next_discovery_id.set(id.wrapping_add(1));
-        self.id.set(id);
-        self.peers.borrow_mut().clear();
-        self.visible.borrow_mut().clear();
-        while let Some(child) = self.list.first_child() {
-            self.list.remove(&child);
-        }
-        self.progress_box.set_visible(true);
+        self.searching.set(true);
         self.spinner.set_visible(true);
         self.spinner.start();
         self.progress_label.set_label("Searching for peers…");
-        self.dialog.set_response_enabled("use", false);
         self.refresh_button.set_sensitive(false);
         app.backend.discover(id, protocols);
     }
 
+    fn cache_partial(&self, app: &Rc<Ui>) {
+        if self.searching.get() {
+            app.drain_events();
+        }
+        if self.searching.get() {
+            app.discovery_cache.borrow_mut().insert_partial(
+                &self.request_protocols.borrow(),
+                &self.peers.borrow().entries,
+            );
+        }
+    }
+
+    fn accepts_event(&self, id: u64) -> bool {
+        self.searching.get() && self.id.get() == id
+    }
+
+    fn add_discovered_peer(&self, peer: DiscoveredPeer) {
+        self.peers.borrow_mut().merge([peer]);
+    }
+
+    fn flush_discovered_peers(&self) {
+        let pending = self.peers.borrow_mut().take_pending_refresh();
+        if pending {
+            self.refresh_list();
+        }
+    }
+
     fn set_result(&self, result: Result<Vec<DiscoveredPeer>, String>) {
+        self.searching.set(false);
         self.refresh_button.set_sensitive(true);
         self.spinner.stop();
         self.spinner.set_visible(false);
         match result {
             Ok(peers) => {
+                self.peers.borrow_mut().entries = peers;
                 if let Some(app) = self.app.upgrade() {
-                    app.discovery_cache
-                        .borrow_mut()
-                        .insert(&self.request_protocols.borrow(), peers.clone());
+                    app.discovery_cache.borrow_mut().insert(
+                        &self.request_protocols.borrow(),
+                        self.peers.borrow().entries.clone(),
+                    );
                 }
-                *self.peers.borrow_mut() = peers;
                 self.refresh_list();
             }
             Err(error) => {
                 tracing::warn!(%error, "peer discovery failed");
-                self.progress_label
-                    .set_label("Search failed. See log for details.");
+                *self.search_error.borrow_mut() = Some(error);
                 if let Some(app) = self.app.upgrade() {
-                    app.discovery_cache
-                        .borrow_mut()
-                        .remove(&self.request_protocols.borrow());
+                    app.discovery_cache.borrow_mut().insert_partial(
+                        &self.request_protocols.borrow(),
+                        &self.peers.borrow().entries,
+                    );
                 }
+                self.refresh_list();
             }
         }
     }
 
     fn refresh_list(&self) {
+        self.peers.borrow_mut().take_pending_refresh();
+        let selected_address = self.list.selected_row().and_then(|row| {
+            usize::try_from(row.index()).ok().and_then(|index| {
+                self.visible
+                    .borrow()
+                    .get(index)
+                    .map(|peer| peer.address.clone())
+            })
+        });
         let enabled: Vec<&str> = self
             .filters
             .iter()
@@ -933,6 +1016,7 @@ impl DiscoveryDialog {
         let mut visible: Vec<_> = self
             .peers
             .borrow()
+            .entries
             .iter()
             .filter(|peer| enabled.contains(&peer.protocol.as_str()))
             .cloned()
@@ -945,6 +1029,9 @@ impl DiscoveryDialog {
         while let Some(child) = self.list.first_child() {
             self.list.remove(&child);
         }
+        let selected_index = selected_address
+            .as_ref()
+            .and_then(|address| visible.iter().position(|peer| &peer.address == address));
         for peer in &visible {
             let row = adw::ActionRow::builder()
                 .title(format_endpoint(&peer.host, peer.port))
@@ -961,16 +1048,22 @@ impl DiscoveryDialog {
                     .map_or_else(|| "–".to_owned(), |ping| format!("{ping} ms")),
             ));
             ping.set_xalign(1.0);
+            ping.set_tooltip_text(Some(
+                "ICMP round-trip time to the host. A dash means the measurement failed or no reply was received; it does not necessarily mean the peer is unreachable.",
+            ));
             row.add_suffix(&ping);
             self.list.append(&row);
         }
-        let status = if visible.is_empty() {
-            "No peers available".to_owned()
-        } else {
-            format!("Shown {} peers", visible.len())
-        };
+        let status = discovery_status(
+            visible.len(),
+            self.searching.get(),
+            self.search_error.borrow().as_deref(),
+        );
         self.progress_label.set_label(&status);
         *self.visible.borrow_mut() = visible;
+        if let Some(index) = selected_index.and_then(|index| i32::try_from(index).ok()) {
+            self.list.select_row(self.list.row_at_index(index).as_ref());
+        }
     }
 }
 
@@ -981,6 +1074,64 @@ fn object<T: glib::object::IsA<glib::Object> + Clone + 'static>(
     builder
         .object(id)
         .ok_or_else(|| anyhow::anyhow!("UI object {id} is missing or has the wrong type"))
+}
+
+#[derive(Default)]
+struct DiscoveryPeers {
+    entries: Vec<DiscoveredPeer>,
+    pending_refresh: bool,
+}
+
+impl DiscoveryPeers {
+    fn merge(&mut self, incoming: impl IntoIterator<Item = DiscoveredPeer>) {
+        self.pending_refresh |= merge_discovered_peers(&mut self.entries, incoming);
+    }
+
+    fn take_pending_refresh(&mut self) -> bool {
+        std::mem::take(&mut self.pending_refresh)
+    }
+}
+
+fn merge_discovered_peers(
+    peers: &mut Vec<DiscoveredPeer>,
+    incoming: impl IntoIterator<Item = DiscoveredPeer>,
+) -> bool {
+    let mut changed = false;
+    for peer in incoming {
+        if let Some(existing) = peers
+            .iter_mut()
+            .find(|existing| existing.address == peer.address)
+        {
+            if *existing != peer {
+                *existing = peer;
+                changed = true;
+            }
+        } else {
+            peers.push(peer);
+            changed = true;
+        }
+    }
+    changed
+}
+
+fn discovery_status(count: usize, searching: bool, error: Option<&str>) -> String {
+    if let Some(error) = error {
+        if count == 0 {
+            format!("Search failed: {error}")
+        } else {
+            format!("Search failed: {error} • Shown {count} peers")
+        }
+    } else if searching {
+        if count == 0 {
+            "Searching for peers…".to_owned()
+        } else {
+            format!("Searching for peers… Shown {count} peers")
+        }
+    } else if count == 0 {
+        "No peers available".to_owned()
+    } else {
+        format!("Shown {count} peers")
+    }
 }
 
 fn validate_endpoint(protocol: &str, endpoint: &str) -> bool {
@@ -1000,6 +1151,53 @@ fn valid_hostname(value: &str) -> bool {
             .unwrap()
         })
         .is_match(value)
+}
+
+fn build_discovered_peer_uri(
+    prefill: Option<&DiscoveredPeer>,
+    protocol: &str,
+    endpoint: &str,
+    sni: &str,
+    password: &str,
+) -> Option<String> {
+    if let Some(peer) = prefill
+        && let Ok(url) = Url::parse(&peer.address)
+    {
+        let original_sni = url
+            .query_pairs()
+            .find(|(key, _)| key == "sni")
+            .map(|(_, value)| value.into_owned())
+            .unwrap_or_default();
+        let original_password = url
+            .query_pairs()
+            .find(|(key, _)| key == "password")
+            .map(|(_, value)| value.into_owned())
+            .unwrap_or_default();
+        if protocol == peer.protocol && endpoint == format_endpoint(&peer.host, peer.port) {
+            if sni == original_sni && password == original_password {
+                return Some(peer.address.clone());
+            }
+            let pairs: Vec<(String, String)> = url
+                .query_pairs()
+                .filter(|(key, _)| key != "sni" && key != "password")
+                .map(|(key, value)| (key.into_owned(), value.into_owned()))
+                .collect();
+            let mut updated = url;
+            updated.set_query(None);
+            if !pairs.is_empty() || !sni.is_empty() || !password.is_empty() {
+                let mut query = updated.query_pairs_mut();
+                query.extend_pairs(pairs);
+                if !sni.is_empty() {
+                    query.append_pair("sni", sni);
+                }
+                if !password.is_empty() {
+                    query.append_pair("password", password);
+                }
+            }
+            return Some(updated.to_string());
+        }
+    }
+    build_peer_uri(protocol, endpoint, sni, password)
 }
 
 fn build_peer_uri(protocol: &str, endpoint: &str, sni: &str, password: &str) -> Option<String> {
@@ -1056,9 +1254,15 @@ fn without_query(uri: &str) -> &str {
     uri.split_once('?').map_or(uri, |(base, _)| base)
 }
 
+#[derive(Clone)]
+struct CachedDiscovery {
+    peers: Vec<DiscoveredPeer>,
+    complete: bool,
+}
+
 #[derive(Default)]
 struct DiscoveryCache {
-    entries: HashMap<Vec<String>, Vec<DiscoveredPeer>>,
+    entries: HashMap<Vec<String>, CachedDiscovery>,
 }
 
 impl DiscoveryCache {
@@ -1068,16 +1272,42 @@ impl DiscoveryCache {
         protocols
     }
 
-    fn get(&self, protocols: &[String]) -> Option<&[DiscoveredPeer]> {
-        self.entries.get(&Self::key(protocols)).map(Vec::as_slice)
+    fn get(&self, protocols: &[String]) -> Option<&CachedDiscovery> {
+        self.entries.get(&Self::key(protocols))
     }
 
     fn insert(&mut self, protocols: &[String], peers: Vec<DiscoveredPeer>) {
-        self.entries.insert(Self::key(protocols), peers);
+        self.entries.insert(
+            Self::key(protocols),
+            CachedDiscovery {
+                peers,
+                complete: true,
+            },
+        );
     }
 
-    fn remove(&mut self, protocols: &[String]) {
-        self.entries.remove(&Self::key(protocols));
+    fn clear(&mut self) {
+        self.entries.clear();
+    }
+
+    fn close_dialog(&mut self, searching: bool) {
+        if searching {
+            self.clear();
+        }
+    }
+
+    fn insert_partial(&mut self, protocols: &[String], peers: &[DiscoveredPeer]) {
+        if peers.is_empty() {
+            return;
+        }
+        let entry = self
+            .entries
+            .entry(Self::key(protocols))
+            .or_insert_with(|| CachedDiscovery {
+                peers: Vec::new(),
+                complete: false,
+            });
+        merge_discovered_peers(&mut entry.peers, peers.iter().cloned());
     }
 }
 

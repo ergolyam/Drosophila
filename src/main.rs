@@ -4,6 +4,7 @@ mod app;
 mod backend;
 mod config;
 mod discovery;
+mod peer_probe;
 mod privileged;
 mod proxy;
 mod system_proxy;
@@ -13,6 +14,16 @@ mod windows_console;
 use tracing_subscriber::EnvFilter;
 
 fn main() -> gtk::glib::ExitCode {
+    let mut args = std::env::args_os().skip(1);
+    if args.next().as_deref() == Some(std::ffi::OsStr::new("--peer-probe")) && args.next().is_none()
+    {
+        return if peer_probe::run() {
+            gtk::glib::ExitCode::SUCCESS
+        } else {
+            gtk::glib::ExitCode::FAILURE
+        };
+    }
+
     let mut arguments = Vec::new();
     let mut debug = false;
     for argument in std::env::args() {

@@ -36,6 +36,10 @@ pub enum BackendEvent {
     Stopped,
     Failed(String),
     PeerStatus(HashMap<String, bool>),
+    DiscoveryPeer {
+        id: u64,
+        peer: DiscoveredPeer,
+    },
     DiscoveryFinished {
         id: u64,
         result: Result<Vec<DiscoveredPeer>, String>,
@@ -48,6 +52,7 @@ enum BackendCommand {
     AddPeer(String),
     RemovePeer(String),
     Discover { id: u64, protocols: Vec<String> },
+    CancelDiscovery,
     Shutdown,
 }
 
@@ -113,6 +118,10 @@ impl BackendHandle {
             .send(BackendCommand::Discover { id, protocols });
     }
 
+    pub fn cancel_discovery(&self) {
+        let _ = self.inner.sender.send(BackendCommand::CancelDiscovery);
+    }
+
     pub fn shutdown(&self) {
         let _ = self.inner.sender.send(BackendCommand::Shutdown);
         let thread = self
@@ -132,6 +141,7 @@ async fn backend_loop(
     events: std_mpsc::Sender<BackendEvent>,
 ) {
     let mut node: Option<ActiveNode> = None;
+    let mut discovery: Option<JoinHandle<()>> = None;
     let (remote_tx, mut remote_rx) = mpsc::unbounded_channel::<RemoteEnvelope>();
     let mut next_remote_session = 0_u64;
     let mut status_timer = tokio::time::interval(Duration::from_secs(1));
@@ -145,6 +155,7 @@ async fn backend_loop(
                     command,
                     &mut node,
                     &mut next_remote_session,
+                    &mut discovery,
                     &remote_tx,
                     &events,
                 ).await {
@@ -163,6 +174,9 @@ async fn backend_loop(
         }
     }
 
+    if let Some(discovery) = discovery {
+        discovery.abort();
+    }
     if let Some(current) = node {
         current.close().await;
     }
@@ -172,6 +186,7 @@ async fn handle_command(
     command: BackendCommand,
     node: &mut Option<ActiveNode>,
     next_remote_session: &mut u64,
+    discovery: &mut Option<JoinHandle<()>>,
     remote_tx: &mpsc::UnboundedSender<RemoteEnvelope>,
     events: &std_mpsc::Sender<BackendEvent>,
 ) -> bool {
@@ -217,13 +232,24 @@ async fn handle_command(
             }
         }
         BackendCommand::Discover { id, protocols } => {
+            if let Some(previous) = discovery.take() {
+                previous.abort();
+            }
             let event_sender = events.clone();
-            tokio::spawn(async move {
-                let result = discover_peers(&protocols)
-                    .await
-                    .map_err(|error| format!("{error:#}"));
+            *discovery = Some(tokio::spawn(async move {
+                let peer_sender = event_sender.clone();
+                let result = discover_peers(&protocols, move |peer| {
+                    let _ = peer_sender.send(BackendEvent::DiscoveryPeer { id, peer });
+                })
+                .await
+                .map_err(|error| format!("{error:#}"));
                 let _ = event_sender.send(BackendEvent::DiscoveryFinished { id, result });
-            });
+            }));
+        }
+        BackendCommand::CancelDiscovery => {
+            if let Some(previous) = discovery.take() {
+                previous.abort();
+            }
         }
         BackendCommand::Shutdown => return false,
     }
