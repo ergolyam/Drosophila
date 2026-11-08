@@ -918,7 +918,9 @@ impl DiscoveryDialog {
                 .set_label("Select at least one protocol");
             return;
         }
-        if !refresh {
+        if refresh {
+            app.discovery_cache.borrow_mut().clear();
+        } else {
             let cached = app.discovery_cache.borrow().get(&protocols).cloned();
             if let Some(cached) = cached {
                 self.peers.borrow_mut().entries = cached.peers;
@@ -1280,6 +1282,10 @@ impl DiscoveryCache {
                 complete: true,
             },
         );
+    }
+
+    fn clear(&mut self) {
+        self.entries.clear();
     }
 
     fn insert_partial(&mut self, protocols: &[String], peers: &[DiscoveredPeer]) {

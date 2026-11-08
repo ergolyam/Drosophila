@@ -159,4 +159,12 @@ fn session_cache_preserves_partial_and_completed_searches() {
     cache.insert(&tcp, vec![discovered("tcp://updated")]);
     assert_eq!(cache.get(&tcp).unwrap().peers[0].address, "tcp://updated");
     assert!(DiscoveryCache::default().get(&tcp).is_none());
+
+    cache.clear();
+    assert!(cache.get(&tcp).is_none());
+    assert!(cache.get(&ws).is_none());
+    assert!(cache.get(&partial_protocol).is_none());
+    cache.insert_partial(&tcp, &[discovered("tcp://fresh")]);
+    assert!(!cache.get(&tcp).unwrap().complete);
+    assert_eq!(cache.get(&tcp).unwrap().peers[0].address, "tcp://fresh");
 }
