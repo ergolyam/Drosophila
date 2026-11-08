@@ -94,7 +94,7 @@
                 <property name="model">
                   <object class="GtkStringList">
                     <items>
-                      <item translatable="yes">Ping</item>
+                      <item translatable="yes">ICMP ping</item>
                       <item translatable="yes">Country</item>
                     </items>
                   </object>

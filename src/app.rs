@@ -739,9 +739,10 @@ impl Ui {
     }
 
     fn open_discovery(self: &Rc<Self>) {
+        self.discovery_cache.borrow_mut().entries.clear();
         let dialog = DiscoveryDialog::new(Rc::downgrade(self));
         *self.discovery.borrow_mut() = Some(dialog.clone());
-        dialog.start(false);
+        dialog.start(true);
         dialog.dialog.present(Some(&self.window));
     }
 
@@ -808,7 +809,7 @@ impl DiscoveryDialog {
                 let weak = Rc::downgrade(self);
                 move |_| {
                     if let Some(dialog) = weak.upgrade() {
-                        dialog.refresh_list();
+                        dialog.start(false);
                     }
                 }
             });
@@ -816,7 +817,9 @@ impl DiscoveryDialog {
         self.sort.connect_selected_notify({
             let weak = Rc::downgrade(self);
             move |_| {
-                if let Some(dialog) = weak.upgrade() {
+                if let Some(dialog) = weak.upgrade()
+                    && !dialog.peers.borrow().is_empty()
+                {
                     dialog.refresh_list();
                 }
             }
@@ -847,6 +850,7 @@ impl DiscoveryDialog {
                 {
                     app.open_add_peer_dialog(Some(peer));
                 }
+                app.backend.cancel_discovery();
                 *app.discovery.borrow_mut() = None;
             }
         });
@@ -865,33 +869,36 @@ impl DiscoveryDialog {
             return;
         };
         let protocols = self.selected_protocols();
-        if protocols.is_empty() {
-            self.progress_label
-                .set_label("Select at least one protocol");
-            return;
-        }
-        (*self.request_protocols.borrow_mut()).clone_from(&protocols);
-        if !refresh && let Some(peers) = app.discovery_cache.borrow().get(&protocols) {
-            *self.peers.borrow_mut() = peers.to_vec();
-            self.refresh_list();
-            self.progress_box.set_visible(true);
-            self.spinner.stop();
-            self.spinner.set_visible(false);
-            return;
-        }
+        app.backend.cancel_discovery();
         let id = app.next_discovery_id.get();
         app.next_discovery_id.set(id.wrapping_add(1));
         self.id.set(id);
+        (*self.request_protocols.borrow_mut()).clone_from(&protocols);
         self.peers.borrow_mut().clear();
         self.visible.borrow_mut().clear();
         while let Some(child) = self.list.first_child() {
             self.list.remove(&child);
         }
+        self.dialog.set_response_enabled("use", false);
         self.progress_box.set_visible(true);
+        self.spinner.stop();
+        self.spinner.set_visible(false);
+        self.refresh_button.set_sensitive(!protocols.is_empty());
+        if protocols.is_empty() {
+            self.progress_label
+                .set_label("Select at least one protocol");
+            return;
+        }
+        if refresh {
+            app.discovery_cache.borrow_mut().remove(&protocols);
+        } else if let Some(peers) = app.discovery_cache.borrow().get(&protocols) {
+            *self.peers.borrow_mut() = peers.to_vec();
+            self.refresh_list();
+            return;
+        }
         self.spinner.set_visible(true);
         self.spinner.start();
         self.progress_label.set_label("Searching for peers…");
-        self.dialog.set_response_enabled("use", false);
         self.refresh_button.set_sensitive(false);
         app.backend.discover(id, protocols);
     }
@@ -961,6 +968,9 @@ impl DiscoveryDialog {
                     .map_or_else(|| "–".to_owned(), |ping| format!("{ping} ms")),
             ));
             ping.set_xalign(1.0);
+            ping.set_tooltip_text(Some(
+                "ICMP round-trip time to the host. A dash means the measurement failed or no reply was received; it does not necessarily mean the peer is unreachable.",
+            ));
             row.add_suffix(&ping);
             self.list.append(&row);
         }
