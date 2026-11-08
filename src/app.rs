@@ -874,7 +874,9 @@ impl DiscoveryDialog {
                 {
                     app.open_add_peer_dialog(Some(peer));
                 }
-                dialog.cache_partial(&app);
+                app.discovery_cache
+                    .borrow_mut()
+                    .close_dialog(dialog.searching.get());
                 dialog.searching.set(false);
                 app.backend.cancel_discovery();
                 *app.discovery.borrow_mut() = None;
@@ -1286,6 +1288,12 @@ impl DiscoveryCache {
 
     fn clear(&mut self) {
         self.entries.clear();
+    }
+
+    fn close_dialog(&mut self, searching: bool) {
+        if searching {
+            self.clear();
+        }
     }
 
     fn insert_partial(&mut self, protocols: &[String], peers: &[DiscoveredPeer]) {

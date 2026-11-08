@@ -160,7 +160,10 @@ fn session_cache_preserves_partial_and_completed_searches() {
     assert_eq!(cache.get(&tcp).unwrap().peers[0].address, "tcp://updated");
     assert!(DiscoveryCache::default().get(&tcp).is_none());
 
-    cache.clear();
+    cache.close_dialog(false);
+    assert!(cache.get(&tcp).is_some());
+    assert!(cache.get(&ws).is_some());
+    cache.close_dialog(true);
     assert!(cache.get(&tcp).is_none());
     assert!(cache.get(&ws).is_none());
     assert!(cache.get(&partial_protocol).is_none());
