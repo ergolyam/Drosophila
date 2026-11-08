@@ -427,17 +427,21 @@ impl Ui {
     fn start_event_pump(self: &Rc<Self>) {
         let ui = self.clone();
         glib::timeout_add_local(Duration::from_millis(100), move || {
-            loop {
-                let event = ui.events.borrow().try_recv();
-                let Ok(event) = event else { break };
-                ui.handle_backend_event(event);
-            }
+            ui.drain_events();
             let dialog = ui.discovery.borrow().clone();
             if let Some(dialog) = dialog {
                 dialog.flush_discovered_peers();
             }
             ControlFlow::Continue
         });
+    }
+
+    fn drain_events(self: &Rc<Self>) {
+        loop {
+            let event = self.events.borrow().try_recv();
+            let Ok(event) = event else { break };
+            self.handle_backend_event(event);
+        }
     }
 
     fn handle_backend_event(self: &Rc<Self>, event: BackendEvent) {
@@ -755,10 +759,9 @@ impl Ui {
     }
 
     fn open_discovery(self: &Rc<Self>) {
-        self.discovery_cache.borrow_mut().entries.clear();
         let dialog = DiscoveryDialog::new(Rc::downgrade(self));
         *self.discovery.borrow_mut() = Some(dialog.clone());
-        dialog.start(true);
+        dialog.start(false);
         dialog.dialog.present(Some(&self.window));
     }
 
@@ -871,6 +874,7 @@ impl DiscoveryDialog {
                 {
                     app.open_add_peer_dialog(Some(peer));
                 }
+                dialog.cache_partial(&app);
                 dialog.searching.set(false);
                 app.backend.cancel_discovery();
                 *app.discovery.borrow_mut() = None;
@@ -891,6 +895,7 @@ impl DiscoveryDialog {
             return;
         };
         let protocols = self.selected_protocols();
+        self.cache_partial(&app);
         self.searching.set(false);
         *self.search_error.borrow_mut() = None;
         app.backend.cancel_discovery();
@@ -913,18 +918,14 @@ impl DiscoveryDialog {
                 .set_label("Select at least one protocol");
             return;
         }
-        if refresh {
-            app.discovery_cache.borrow_mut().remove(&protocols);
-        } else {
-            let cached = app
-                .discovery_cache
-                .borrow()
-                .get(&protocols)
-                .map(<[_]>::to_vec);
-            if let Some(peers) = cached {
-                self.peers.borrow_mut().entries = peers;
+        if !refresh {
+            let cached = app.discovery_cache.borrow().get(&protocols).cloned();
+            if let Some(cached) = cached {
+                self.peers.borrow_mut().entries = cached.peers;
                 self.refresh_list();
-                return;
+                if cached.complete {
+                    return;
+                }
             }
         }
         self.searching.set(true);
@@ -933,6 +934,18 @@ impl DiscoveryDialog {
         self.progress_label.set_label("Searching for peers…");
         self.refresh_button.set_sensitive(false);
         app.backend.discover(id, protocols);
+    }
+
+    fn cache_partial(&self, app: &Rc<Ui>) {
+        if self.searching.get() {
+            app.drain_events();
+        }
+        if self.searching.get() {
+            app.discovery_cache.borrow_mut().insert_partial(
+                &self.request_protocols.borrow(),
+                &self.peers.borrow().entries,
+            );
+        }
     }
 
     fn accepts_event(&self, id: u64) -> bool {
@@ -957,7 +970,7 @@ impl DiscoveryDialog {
         self.spinner.set_visible(false);
         match result {
             Ok(peers) => {
-                self.peers.borrow_mut().merge(peers);
+                self.peers.borrow_mut().entries = peers;
                 if let Some(app) = self.app.upgrade() {
                     app.discovery_cache.borrow_mut().insert(
                         &self.request_protocols.borrow(),
@@ -970,9 +983,10 @@ impl DiscoveryDialog {
                 tracing::warn!(%error, "peer discovery failed");
                 *self.search_error.borrow_mut() = Some(error);
                 if let Some(app) = self.app.upgrade() {
-                    app.discovery_cache
-                        .borrow_mut()
-                        .remove(&self.request_protocols.borrow());
+                    app.discovery_cache.borrow_mut().insert_partial(
+                        &self.request_protocols.borrow(),
+                        &self.peers.borrow().entries,
+                    );
                 }
                 self.refresh_list();
             }
@@ -1236,9 +1250,15 @@ fn without_query(uri: &str) -> &str {
     uri.split_once('?').map_or(uri, |(base, _)| base)
 }
 
+#[derive(Clone)]
+struct CachedDiscovery {
+    peers: Vec<DiscoveredPeer>,
+    complete: bool,
+}
+
 #[derive(Default)]
 struct DiscoveryCache {
-    entries: HashMap<Vec<String>, Vec<DiscoveredPeer>>,
+    entries: HashMap<Vec<String>, CachedDiscovery>,
 }
 
 impl DiscoveryCache {
@@ -1248,16 +1268,32 @@ impl DiscoveryCache {
         protocols
     }
 
-    fn get(&self, protocols: &[String]) -> Option<&[DiscoveredPeer]> {
-        self.entries.get(&Self::key(protocols)).map(Vec::as_slice)
+    fn get(&self, protocols: &[String]) -> Option<&CachedDiscovery> {
+        self.entries.get(&Self::key(protocols))
     }
 
     fn insert(&mut self, protocols: &[String], peers: Vec<DiscoveredPeer>) {
-        self.entries.insert(Self::key(protocols), peers);
+        self.entries.insert(
+            Self::key(protocols),
+            CachedDiscovery {
+                peers,
+                complete: true,
+            },
+        );
     }
 
-    fn remove(&mut self, protocols: &[String]) {
-        self.entries.remove(&Self::key(protocols));
+    fn insert_partial(&mut self, protocols: &[String], peers: &[DiscoveredPeer]) {
+        if peers.is_empty() {
+            return;
+        }
+        let entry = self
+            .entries
+            .entry(Self::key(protocols))
+            .or_insert_with(|| CachedDiscovery {
+                peers: Vec::new(),
+                complete: false,
+            });
+        merge_discovered_peers(&mut entry.peers, peers.iter().cloned());
     }
 }
 

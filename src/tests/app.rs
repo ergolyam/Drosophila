@@ -125,13 +125,38 @@ fn protocol_order_does_not_affect_cache_lookup() {
 }
 
 #[test]
-fn removing_request_keeps_other_cached_protocols() {
+fn session_cache_preserves_partial_and_completed_searches() {
     let mut cache = DiscoveryCache::default();
-    cache.insert(&protocols(&["tcp", "tls"]), Vec::new());
-    cache.insert(&protocols(&["ws"]), Vec::new());
+    let tcp = protocols(&["tcp"]);
+    let ws = protocols(&["ws"]);
+    let peer = discovered("tcp://a");
 
-    cache.remove(&protocols(&["tls", "tcp"]));
+    cache.insert_partial(&tcp, &[]);
+    assert!(cache.get(&tcp).is_none());
+    cache.insert_partial(&tcp, std::slice::from_ref(&peer));
+    let partial = cache.get(&tcp).unwrap();
+    assert!(!partial.complete);
+    assert_eq!(partial.peers, vec![peer.clone()]);
 
-    assert!(cache.get(&protocols(&["tcp", "tls"])).is_none());
-    assert!(cache.get(&protocols(&["ws"])).is_some());
+    cache.insert(&tcp, vec![peer.clone()]);
+    cache.insert(&ws, Vec::new());
+    cache.insert_partial(&tcp, &[discovered("tcp://b")]);
+    assert!(cache.get(&tcp).unwrap().complete);
+    assert_eq!(
+        cache.get(&tcp).unwrap().peers,
+        vec![peer, discovered("tcp://b")]
+    );
+    assert!(cache.get(&ws).unwrap().complete);
+    assert!(cache.get(&ws).unwrap().peers.is_empty());
+
+    let partial_protocol = protocols(&["wss"]);
+    cache.insert_partial(&partial_protocol, &[discovered("tcp://first")]);
+    cache.insert_partial(&partial_protocol, &[discovered("tcp://second")]);
+    assert_eq!(cache.get(&partial_protocol).unwrap().peers.len(), 2);
+    cache.insert_partial(&ws, &[discovered("ws://new")]);
+    assert_eq!(cache.get(&ws).unwrap().peers.len(), 1);
+
+    cache.insert(&tcp, vec![discovered("tcp://updated")]);
+    assert_eq!(cache.get(&tcp).unwrap().peers[0].address, "tcp://updated");
+    assert!(DiscoveryCache::default().get(&tcp).is_none());
 }
