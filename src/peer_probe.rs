@@ -41,15 +41,29 @@ async fn probe(uri: &str, timeout: Duration) -> bool {
         if core.add_peer(uri).await.is_err() {
             return false;
         }
+        let mut status_interval = tokio::time::interval(Duration::from_millis(100));
         loop {
-            match events.recv().await {
-                Ok(PeerEvent::Connected {
-                    uri: connected_uri,
-                    inbound: false,
-                    ..
-                }) if connected_uri == uri => return true,
-                Ok(_) | Err(RecvError::Lagged(_)) => {}
-                Err(RecvError::Closed) => return false,
+            tokio::select! {
+                biased;
+                event = events.recv() => match event {
+                    Ok(PeerEvent::Connected {
+                        uri: connected_uri,
+                        inbound: false,
+                        ..
+                    }) if connected_uri == uri => return true,
+                    Ok(_) | Err(RecvError::Lagged(_)) => {}
+                    Err(RecvError::Closed) => return false,
+                },
+                _ = status_interval.tick() => {
+                    if let Some(peer) = core.get_peers().await.into_iter().find(|peer| peer.uri == uri && !peer.inbound) {
+                        if peer.up {
+                            return true;
+                        }
+                        if peer.last_error.is_some() {
+                            return false;
+                        }
+                    }
+                }
             }
         }
     })

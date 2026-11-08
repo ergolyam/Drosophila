@@ -1,10 +1,11 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap, HashSet, VecDeque};
+use std::future::Future;
 use std::net::IpAddr;
 use std::process::Stdio;
 use std::time::Duration;
 
 use anyhow::{Context, Result, anyhow};
-use futures::{StreamExt, TryStreamExt, stream};
+use futures::{StreamExt, stream, stream::FuturesUnordered};
 use serde::Deserialize;
 use tokio::io::AsyncWriteExt;
 use tokio::net::lookup_host;
@@ -34,7 +35,10 @@ struct PeerMetadata {
 
 type PublicNodes = HashMap<String, HashMap<String, PeerMetadata>>;
 
-pub async fn discover_peers(protocols: &[String]) -> Result<Vec<DiscoveredPeer>> {
+pub async fn discover_peers(
+    protocols: &[String],
+    on_peer: impl Fn(DiscoveredPeer) + Send + Sync,
+) -> Result<Vec<DiscoveredPeer>> {
     let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(10))
         .user_agent(concat!("Drosophila/", env!("CARGO_PKG_VERSION")))
@@ -63,12 +67,66 @@ pub async fn discover_peers(protocols: &[String]) -> Result<Vec<DiscoveredPeer>>
 
     let peers = build_candidates(nodes, protocols);
     let executable = std::env::current_exe().context("locating peer probe executable")?;
-    let mut available: Vec<_> = stream::iter(peers)
-        .map(|peer| probe_peer(peer, &executable))
-        .buffer_unordered(8)
-        .try_filter_map(|peer| async move { Ok(peer) })
-        .try_collect()
-        .await?;
+    check_candidates(
+        peers,
+        |peer| probe_peer(peer, &executable),
+        |peer| async move { ping_peer(&peer).await },
+        on_peer,
+    )
+    .await
+}
+
+async fn check_candidates<P, PF, I, IF, C>(
+    peers: Vec<DiscoveredPeer>,
+    probe: P,
+    ping: I,
+    on_peer: C,
+) -> Result<Vec<DiscoveredPeer>>
+where
+    P: Fn(DiscoveredPeer) -> PF,
+    PF: Future<Output = Result<Option<DiscoveredPeer>>>,
+    I: Fn(DiscoveredPeer) -> IF,
+    IF: Future<Output = Option<u64>>,
+    C: Fn(DiscoveredPeer),
+{
+    let probes = stream::iter(peers).map(probe).buffer_unordered(32);
+    futures::pin_mut!(probes);
+    let mut pending_pings = VecDeque::new();
+    let mut pings = FuturesUnordered::new();
+    let mut probes_finished = false;
+    let mut available = Vec::new();
+    loop {
+        while pings.len() < 32 {
+            let Some(mut peer): Option<DiscoveredPeer> = pending_pings.pop_front() else {
+                break;
+            };
+            let future = ping(peer.clone());
+            pings.push(async move {
+                peer.ping_ms = future.await;
+                peer
+            });
+        }
+        if probes_finished && pings.is_empty() && pending_pings.is_empty() {
+            break;
+        }
+        tokio::select! {
+            result = probes.next(), if !probes_finished => match result {
+                Some(Ok(Some(peer))) => {
+                    on_peer(peer.clone());
+                    pending_pings.push_back(peer);
+                }
+                Some(Ok(None)) => {}
+                Some(Err(error)) => return Err(error),
+                None => probes_finished = true,
+            },
+            Some(peer) = pings.next(), if !pings.is_empty() => {
+                if peer.ping_ms.is_some() {
+                    on_peer(peer.clone());
+                }
+                available.push(peer);
+            }
+        }
+    }
     available.sort_by_key(|peer| (peer.ping_ms.unwrap_or(u64::MAX), peer.country.clone()));
     Ok(available)
 }
@@ -115,13 +173,12 @@ fn build_candidates(nodes: PublicNodes, protocols: &[String]) -> Vec<DiscoveredP
 }
 
 async fn probe_peer(
-    mut peer: DiscoveredPeer,
+    peer: DiscoveredPeer,
     executable: &std::path::Path,
 ) -> Result<Option<DiscoveredPeer>> {
     if !probe_yggdrasil(executable, &peer.address).await? {
         return Ok(None);
     }
-    peer.ping_ms = ping_peer(&peer).await;
     Ok(Some(peer))
 }
 

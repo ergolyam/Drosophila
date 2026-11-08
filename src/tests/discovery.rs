@@ -46,6 +46,91 @@ fn parses_icmp_reply_times_without_using_summary() {
 }
 
 #[tokio::test]
+async fn reports_peers_before_slow_probes_and_ping_finish() {
+    let peer = |address: &str| DiscoveredPeer {
+        address: address.to_owned(),
+        protocol: "tcp".to_owned(),
+        host: "localhost".to_owned(),
+        port: 1234,
+        country: "test".to_owned(),
+        ping_ms: None,
+    };
+    let (events, mut received) = tokio::sync::mpsc::unbounded_channel();
+    let (release_ping, ping_gate) = tokio::sync::oneshot::channel::<()>();
+    let ping_gate = std::sync::Arc::new(tokio::sync::Mutex::new(Some(ping_gate)));
+    let task = tokio::spawn(check_candidates(
+        vec![peer("fast"), peer("slow")],
+        |peer| async move {
+            if peer.address == "slow" {
+                std::future::pending::<()>().await;
+            }
+            Ok(Some(peer))
+        },
+        move |_| {
+            let gate = ping_gate.clone();
+            async move {
+                if let Some(gate) = gate.lock().await.take() {
+                    let _ = gate.await;
+                }
+                Some(42)
+            }
+        },
+        move |peer| {
+            let _ = events.send(peer);
+        },
+    ));
+    let first = tokio::time::timeout(Duration::from_secs(2), received.recv())
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(first.address, "fast");
+    assert_eq!(first.ping_ms, None);
+    release_ping.send(()).unwrap();
+    let updated = tokio::time::timeout(Duration::from_secs(2), received.recv())
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(updated.address, "fast");
+    assert_eq!(updated.ping_ms, Some(42));
+    assert!(!task.is_finished());
+    task.abort();
+    assert!(task.await.unwrap_err().is_cancelled());
+}
+
+#[tokio::test]
+async fn saturated_pings_do_not_block_later_probe_results() {
+    let peers = (0..70)
+        .map(|number| DiscoveredPeer {
+            address: number.to_string(),
+            protocol: "tcp".to_owned(),
+            host: "localhost".to_owned(),
+            port: 1234,
+            country: "test".to_owned(),
+            ping_ms: None,
+        })
+        .collect();
+    let (events, mut received) = tokio::sync::mpsc::unbounded_channel();
+    let task = tokio::spawn(check_candidates(
+        peers,
+        |peer| async move { Ok(Some(peer)) },
+        |_| async { std::future::pending::<Option<u64>>().await },
+        move |peer| {
+            let _ = events.send(peer);
+        },
+    ));
+    for expected in 0..70 {
+        let peer = tokio::time::timeout(Duration::from_secs(2), received.recv())
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(peer.address, expected.to_string());
+    }
+    assert!(!task.is_finished());
+    task.abort();
+    assert!(task.await.unwrap_err().is_cancelled());
+}
+
+#[tokio::test]
 async fn probes_localhost_without_using_catalog_latency() {
     let peer = DiscoveredPeer {
         address: "quic://127.0.0.1:1234".to_owned(),

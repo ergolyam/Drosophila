@@ -32,11 +32,18 @@ async fn open_non_yggdrasil_server_is_not_success() {
         let _ = accepted_tx.send(());
         std::future::pending::<()>().await;
     });
-    let success = probe(&uri, Duration::from_millis(500)).await;
+    let probe = probe(&uri, Duration::from_millis(600));
+    tokio::pin!(probe);
+    assert!(
+        tokio::time::timeout(Duration::from_millis(200), &mut probe)
+            .await
+            .is_err()
+    );
+    let success = tokio::time::timeout(Duration::from_secs(3), &mut probe).await;
     let accepted = tokio::time::timeout(Duration::from_secs(1), accepted_rx).await;
     server.abort();
     assert!(matches!(accepted, Ok(Ok(()))));
-    assert!(!success);
+    assert!(matches!(success, Ok(false)));
 }
 
 #[tokio::test]
@@ -44,7 +51,12 @@ async fn closed_port_is_not_success() {
     let reservation = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let uri = format!("tcp://{}", reservation.local_addr().unwrap());
     drop(reservation);
-    assert!(!probe(&uri, Duration::from_millis(500)).await);
+    let result =
+        tokio::time::timeout(Duration::from_secs(2), probe(&uri, Duration::from_secs(10))).await;
+    assert!(
+        matches!(result, Ok(false)),
+        "closed port must fail without waiting for the full timeout"
+    );
 }
 
 #[tokio::test]

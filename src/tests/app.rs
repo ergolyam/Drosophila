@@ -32,6 +32,85 @@ fn discovered_peer_keeps_verified_uri() {
     assert!(edited.contains("password=new"));
 }
 
+fn discovered(address: &str) -> DiscoveredPeer {
+    DiscoveredPeer {
+        address: address.to_owned(),
+        protocol: "tcp".to_owned(),
+        host: "example.com".to_owned(),
+        port: 1234,
+        country: "test".to_owned(),
+        ping_ms: None,
+    }
+}
+
+#[test]
+fn progressive_and_final_peers_are_deduplicated_by_address() {
+    let mut peers = Vec::new();
+    assert!(merge_discovered_peers(&mut peers, [discovered("tcp://a")]));
+    assert!(!merge_discovered_peers(&mut peers, [discovered("tcp://a")]));
+    assert!(merge_discovered_peers(
+        &mut peers,
+        [
+            discovered("tcp://a"),
+            discovered("tcp://b"),
+            discovered("tcp://b")
+        ],
+    ));
+    assert_eq!(peers.len(), 2);
+    assert_eq!(peers[0].address, "tcp://a");
+    assert_eq!(peers[1].address, "tcp://b");
+    let mut updated = discovered("tcp://a");
+    updated.ping_ms = Some(25);
+    assert!(merge_discovered_peers(&mut peers, [updated]));
+    assert_eq!(peers.len(), 2);
+    assert_eq!(peers[0].ping_ms, Some(25));
+}
+
+#[test]
+fn progressive_updates_are_coalesced_without_losing_changes() {
+    let mut peers = DiscoveryPeers::default();
+    for i in 0..1_000 {
+        peers.merge([discovered(&format!("tcp://{i}"))]);
+    }
+    let mut updated = discovered("tcp://10");
+    updated.ping_ms = Some(25);
+    peers.merge([updated.clone()]);
+    assert_eq!(peers.entries.len(), 1_000);
+    assert_eq!(peers.entries[10], updated);
+    assert!(peers.take_pending_refresh());
+    assert!(!peers.take_pending_refresh());
+
+    peers.merge([updated.clone()]);
+    assert!(!peers.take_pending_refresh());
+    updated.ping_ms = Some(50);
+    peers.merge([updated]);
+    assert!(peers.take_pending_refresh());
+    assert_eq!(peers.entries[10].ping_ms, Some(50));
+}
+
+#[test]
+fn immediate_refresh_and_new_search_clear_pending_updates() {
+    let mut peers = DiscoveryPeers::default();
+    peers.merge([discovered("tcp://a")]);
+    // An immediate sort or final-result refresh consumes the pending update.
+    assert!(peers.take_pending_refresh());
+    assert!(!peers.take_pending_refresh());
+    peers.merge([discovered("tcp://b")]);
+    peers = DiscoveryPeers::default();
+    assert!(peers.entries.is_empty());
+    assert!(!peers.take_pending_refresh());
+}
+
+#[test]
+fn discovery_status_distinguishes_search_error_and_empty_result() {
+    assert_eq!(discovery_status(0, true, None), "Searching for peers…");
+    assert!(discovery_status(1, true, None).contains("Shown 1 peers"));
+    assert_eq!(discovery_status(0, false, None), "No peers available");
+    let status = discovery_status(1, false, Some("offline"));
+    assert!(status.contains("offline"));
+    assert!(status.contains("Shown 1 peers"));
+}
+
 #[test]
 fn ipv6_endpoint_is_bracketed() {
     assert_eq!(format_endpoint("2001:db8::1", 443), "[2001:db8::1]:443");

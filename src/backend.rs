@@ -36,6 +36,10 @@ pub enum BackendEvent {
     Stopped,
     Failed(String),
     PeerStatus(HashMap<String, bool>),
+    DiscoveryPeer {
+        id: u64,
+        peer: DiscoveredPeer,
+    },
     DiscoveryFinished {
         id: u64,
         result: Result<Vec<DiscoveredPeer>, String>,
@@ -233,9 +237,12 @@ async fn handle_command(
             }
             let event_sender = events.clone();
             *discovery = Some(tokio::spawn(async move {
-                let result = discover_peers(&protocols)
-                    .await
-                    .map_err(|error| format!("{error:#}"));
+                let peer_sender = event_sender.clone();
+                let result = discover_peers(&protocols, move |peer| {
+                    let _ = peer_sender.send(BackendEvent::DiscoveryPeer { id, peer });
+                })
+                .await
+                .map_err(|error| format!("{error:#}"));
                 let _ = event_sender.send(BackendEvent::DiscoveryFinished { id, result });
             }));
         }
