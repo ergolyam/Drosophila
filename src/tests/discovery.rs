@@ -19,6 +19,14 @@ fn candidates_filter_protocol_and_apply_default_websocket_port() {
 }
 
 #[test]
+fn candidates_reject_control_characters_in_uri() {
+    let nodes: PublicNodes =
+        serde_json::from_str(r#"{"DE.md":{"tcp://example.com:1234\n?key=abc":{"up":true}}}"#)
+            .unwrap();
+    assert!(build_candidates(nodes, &["tcp".to_owned()]).is_empty());
+}
+
+#[test]
 fn parses_icmp_reply_times_without_using_summary() {
     assert_eq!(
         parse_ping_output("64 bytes from 127.0.0.1: time=12.34 ms"),
@@ -48,9 +56,9 @@ async fn probes_localhost_without_using_catalog_latency() {
         ping_ms: Some(u64::MAX),
     };
     let direct = ping_address("127.0.0.1".parse().unwrap()).await;
-    let result = probe_peer(peer).await;
-    assert_ne!(result.ping_ms, Some(u64::MAX));
+    let result = ping_peer(&peer).await;
+    assert_ne!(result, Some(u64::MAX));
     if direct.is_some() {
-        assert!(result.ping_ms.is_some());
+        assert!(result.is_some());
     }
 }

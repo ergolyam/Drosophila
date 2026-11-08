@@ -1,10 +1,12 @@
 use std::collections::{HashMap, HashSet};
 use std::net::IpAddr;
+use std::process::Stdio;
 use std::time::Duration;
 
 use anyhow::{Context, Result, anyhow};
-use futures::{StreamExt, stream};
+use futures::{StreamExt, TryStreamExt, stream};
 use serde::Deserialize;
+use tokio::io::AsyncWriteExt;
 use tokio::net::lookup_host;
 use tokio::process::Command;
 use url::Url;
@@ -60,11 +62,13 @@ pub async fn discover_peers(protocols: &[String]) -> Result<Vec<DiscoveredPeer>>
         .ok_or_else(|| last_error.unwrap_or_else(|| anyhow!("all public peer sources failed")))?;
 
     let peers = build_candidates(nodes, protocols);
+    let executable = std::env::current_exe().context("locating peer probe executable")?;
     let mut available: Vec<_> = stream::iter(peers)
-        .map(probe_peer)
-        .buffer_unordered(20)
-        .collect()
-        .await;
+        .map(|peer| probe_peer(peer, &executable))
+        .buffer_unordered(8)
+        .try_filter_map(|peer| async move { Ok(peer) })
+        .try_collect()
+        .await?;
     available.sort_by_key(|peer| (peer.ping_ms.unwrap_or(u64::MAX), peer.country.clone()));
     Ok(available)
 }
@@ -80,6 +84,9 @@ fn build_candidates(nodes: PublicNodes, protocols: &[String]) -> Vec<DiscoveredP
                 continue;
             }
             if !seen.insert(address.clone()) {
+                continue;
+            }
+            if address.chars().any(char::is_control) || address.len() > 8192 {
                 continue;
             }
             let Ok(parsed) = Url::parse(&address) else {
@@ -107,8 +114,46 @@ fn build_candidates(nodes: PublicNodes, protocols: &[String]) -> Vec<DiscoveredP
     peers
 }
 
-async fn probe_peer(mut peer: DiscoveredPeer) -> DiscoveredPeer {
-    peer.ping_ms = tokio::time::timeout(Duration::from_secs(5), async {
+async fn probe_peer(
+    mut peer: DiscoveredPeer,
+    executable: &std::path::Path,
+) -> Result<Option<DiscoveredPeer>> {
+    if !probe_yggdrasil(executable, &peer.address).await? {
+        return Ok(None);
+    }
+    peer.ping_ms = ping_peer(&peer).await;
+    Ok(Some(peer))
+}
+
+async fn probe_yggdrasil(executable: &std::path::Path, address: &str) -> Result<bool> {
+    let result = tokio::time::timeout(Duration::from_secs(20), async {
+        let mut command = Command::new(executable);
+        command
+            .arg("--peer-probe")
+            .stdin(Stdio::piped())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .kill_on_drop(true);
+        #[cfg(windows)]
+        command.creation_flags(0x0800_0000);
+        let mut child = command.spawn()?;
+        if let Some(mut stdin) = child.stdin.take() {
+            if stdin.write_all(address.as_bytes()).await.is_err() || stdin.shutdown().await.is_err()
+            {
+                return Ok(false);
+            }
+        }
+        child.wait().await.map(|status| status.success())
+    })
+    .await;
+    match result {
+        Ok(result) => result.context("running peer probe"),
+        Err(_) => Ok(false),
+    }
+}
+
+async fn ping_peer(peer: &DiscoveredPeer) -> Option<u64> {
+    tokio::time::timeout(Duration::from_secs(5), async {
         let host = peer.host.trim_start_matches('[').trim_end_matches(']');
         let addresses = lookup_host((host, peer.port)).await.ok()?;
         for address in addresses {
@@ -120,8 +165,7 @@ async fn probe_peer(mut peer: DiscoveredPeer) -> DiscoveredPeer {
     })
     .await
     .ok()
-    .flatten();
-    peer
+    .flatten()
 }
 
 async fn ping_address(address: IpAddr) -> Option<u64> {

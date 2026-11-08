@@ -655,7 +655,7 @@ impl Ui {
         let domain_error: gtk::Label = object(&builder, "domain_error").unwrap();
         let sni_error: gtk::Label = object(&builder, "sni_error").unwrap();
 
-        if let Some(peer) = prefill {
+        if let Some(peer) = prefill.as_ref() {
             let selected = PROTOCOLS
                 .iter()
                 .position(|value| *value == peer.protocol)
@@ -725,7 +725,8 @@ impl Ui {
                 }
                 let Some(ui) = weak.upgrade() else { return };
                 let proto = PROTOCOLS[protocol.selected() as usize];
-                if let Some(peer) = build_peer_uri(
+                if let Some(peer) = build_discovered_peer_uri(
+                    prefill.as_ref(),
                     proto,
                     domain.text().trim(),
                     sni.text().trim(),
@@ -1010,6 +1011,53 @@ fn valid_hostname(value: &str) -> bool {
             .unwrap()
         })
         .is_match(value)
+}
+
+fn build_discovered_peer_uri(
+    prefill: Option<&DiscoveredPeer>,
+    protocol: &str,
+    endpoint: &str,
+    sni: &str,
+    password: &str,
+) -> Option<String> {
+    if let Some(peer) = prefill
+        && let Ok(url) = Url::parse(&peer.address)
+    {
+        let original_sni = url
+            .query_pairs()
+            .find(|(key, _)| key == "sni")
+            .map(|(_, value)| value.into_owned())
+            .unwrap_or_default();
+        let original_password = url
+            .query_pairs()
+            .find(|(key, _)| key == "password")
+            .map(|(_, value)| value.into_owned())
+            .unwrap_or_default();
+        if protocol == peer.protocol && endpoint == format_endpoint(&peer.host, peer.port) {
+            if sni == original_sni && password == original_password {
+                return Some(peer.address.clone());
+            }
+            let pairs: Vec<(String, String)> = url
+                .query_pairs()
+                .filter(|(key, _)| key != "sni" && key != "password")
+                .map(|(key, value)| (key.into_owned(), value.into_owned()))
+                .collect();
+            let mut updated = url;
+            updated.set_query(None);
+            if !pairs.is_empty() || !sni.is_empty() || !password.is_empty() {
+                let mut query = updated.query_pairs_mut();
+                query.extend_pairs(pairs);
+                if !sni.is_empty() {
+                    query.append_pair("sni", sni);
+                }
+                if !password.is_empty() {
+                    query.append_pair("password", password);
+                }
+            }
+            return Some(updated.to_string());
+        }
+    }
+    build_peer_uri(protocol, endpoint, sni, password)
 }
 
 fn build_peer_uri(protocol: &str, endpoint: &str, sni: &str, password: &str) -> Option<String> {
