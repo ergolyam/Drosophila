@@ -11,6 +11,7 @@ finish-args:
   - --share=network
   # Required to start the capability-restricted TUN worker on the host.
   - --talk-name=org.freedesktop.Flatpak
+  - --talk-name=org.kde.StatusNotifierWatcher
 
 sdk-extensions:
   - org.freedesktop.Sdk.Extension.rust-stable

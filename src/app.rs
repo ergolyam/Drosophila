@@ -2,7 +2,7 @@ use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::rc::{Rc, Weak};
-use std::sync::mpsc::Receiver;
+use std::sync::mpsc::{self, Receiver, Sender};
 use std::time::Duration;
 
 use adw::prelude::*;
@@ -13,11 +13,12 @@ use url::Url;
 use crate::backend::{BackendEvent, BackendHandle, NodeMode};
 use crate::config::{ConnectionMode, StoredConfig, config_path, load_or_create, save};
 use crate::discovery::DiscoveredPeer;
+use crate::tray::{Tray, TrayEvent};
 
 const APP_ID: &str = "io.github.ergolyam.Drosophila";
 const PROTOCOLS: [&str; 5] = ["tcp", "tls", "ws", "wss", "quic"];
 
-pub fn run(arguments: &[String]) -> glib::ExitCode {
+pub fn run(arguments: &[String], start_in_tray: bool) -> glib::ExitCode {
     configure_windows_runtime();
     let application = adw::Application::builder().application_id(APP_ID).build();
     let (backend, events) = BackendHandle::spawn();
@@ -27,15 +28,22 @@ pub fn run(arguments: &[String]) -> glib::ExitCode {
         let backend = backend.clone();
         let events = events.clone();
         move |application| {
-            if let Some(window) = application.active_window() {
+            if let Some(window) = application
+                .active_window()
+                .or_else(|| application.windows().into_iter().next())
+            {
                 window.present();
                 return;
             }
             let Some(events) = events.borrow_mut().take() else {
                 return;
             };
-            match Ui::new(application, backend.clone(), events) {
-                Ok(ui) => ui.window.present(),
+            match Ui::new(application, backend.clone(), events, start_in_tray) {
+                Ok(ui) => {
+                    if !ui.start_hidden.get() {
+                        ui.window.present();
+                    }
+                }
                 Err(error) => {
                     tracing::error!(%error, "failed to initialize UI");
                     application.quit();
@@ -88,6 +96,13 @@ struct Ui {
     private_key_regen: gtk::Button,
     connection_group: adw::PreferencesGroup,
     mode_row: adw::ComboRow,
+    tray_group: adw::PreferencesGroup,
+    tray_enabled_row: adw::SwitchRow,
+    tray: RefCell<Option<Tray>>,
+    tray_generation: Cell<u64>,
+    tray_sender: Sender<TrayEvent>,
+    tray_events: RefCell<Receiver<TrayEvent>>,
+    start_hidden: Cell<bool>,
     proxy_card: adw::ExpanderRow,
     proxy_listen_row: adw::EntryRow,
     proxy_dns_ip_row: adw::EntryRow,
@@ -115,6 +130,7 @@ impl Ui {
         application: &adw::Application,
         backend: BackendHandle,
         events: Receiver<BackendEvent>,
+        start_in_tray: bool,
     ) -> anyhow::Result<Rc<Self>> {
         let config_path = config_path()?;
         let config = load_or_create(&config_path)?;
@@ -161,6 +177,8 @@ impl Ui {
             );
         }
 
+        let (tray_sender, tray_events) = mpsc::channel();
+        let start_hidden = start_in_tray && config.drosophila.tray_enabled;
         let ui = Rc::new(Self {
             window,
             toast_overlay: object(&builder, "toast_overlay")?,
@@ -171,6 +189,13 @@ impl Ui {
             private_key_regen: object(&builder, "private_key_regen_icon")?,
             connection_group: object(&builder, "connection_group")?,
             mode_row: object(&builder, "mode_row")?,
+            tray_group: object(&builder, "appearance_group")?,
+            tray_enabled_row: object(&builder, "tray_enabled_row")?,
+            tray: RefCell::new(None),
+            tray_generation: Cell::new(0),
+            tray_sender,
+            tray_events: RefCell::new(tray_events),
+            start_hidden: Cell::new(start_hidden),
             proxy_card: object(&builder, "proxy_card")?,
             proxy_listen_row: object(&builder, "proxy_listen_row")?,
             proxy_dns_ip_row: object(&builder, "proxy_dns_ip_row")?,
@@ -195,6 +220,8 @@ impl Ui {
 
         ui.initialize_widgets();
         ui.connect_signals(&builder);
+        ui.connect_tray_signals();
+        ui.watch_tray();
         ui.start_event_pump();
         Ok(ui)
     }
@@ -217,6 +244,7 @@ impl Ui {
         .join(" ");
         self.connection_group
             .set_description(Some(&connection_description));
+        self.tray_enabled_row.set_active(gui.tray_enabled);
         self.set_connection_mode(gui.mode);
         self.proxy_listen_row.set_text(&gui.proxy_listen);
         self.proxy_dns_ip_row.set_text(&gui.dns_server);
@@ -225,6 +253,35 @@ impl Ui {
         self.rebuild_peers();
         self.suppress_ygg_switch.set(false);
         self.suppress_mode_change.set(false);
+    }
+
+    fn connect_tray_signals(self: &Rc<Self>) {
+        self.window.connect_close_request({
+            let weak = Rc::downgrade(self);
+            move |window| {
+                if let Some(ui) = weak.upgrade()
+                    && ui.tray.borrow().is_some()
+                {
+                    window.set_visible(false);
+                    return glib::Propagation::Stop;
+                }
+                glib::Propagation::Proceed
+            }
+        });
+        self.tray_enabled_row.connect_active_notify({
+            let weak = Rc::downgrade(self);
+            move |row| {
+                if let Some(ui) = weak.upgrade() {
+                    ui.config.borrow_mut().drosophila.tray_enabled = row.is_active();
+                    if row.is_active() {
+                        ui.enable_tray();
+                    } else {
+                        ui.tray.borrow_mut().take();
+                    }
+                    ui.persist_config();
+                }
+            }
+        });
     }
 
     fn connect_signals(self: &Rc<Self>, builder: &gtk::Builder) {
@@ -365,6 +422,7 @@ impl Ui {
             return;
         }
         self.transitioning.set(true);
+        self.update_tray_state();
         self.set_controls_sensitive(false);
         if desired {
             self.ygg_card.set_subtitle("Starting…");
@@ -416,10 +474,116 @@ impl Ui {
         }
     }
 
+    fn enable_tray(&self) {
+        if self.tray.borrow().is_some() {
+            return;
+        }
+        let generation = self.tray_generation.get().wrapping_add(1);
+        self.tray_generation.set(generation);
+        match Tray::new(self.tray_sender.clone(), generation) {
+            Ok(tray) => {
+                tray.set_state(self.running.get(), self.transitioning.get());
+                *self.tray.borrow_mut() = Some(tray);
+            }
+            Err(error) => {
+                tracing::warn!(%error, "failed to initialize system tray");
+                self.tray_enabled_row.set_active(false);
+                if self.start_hidden.replace(false) {
+                    self.window.present();
+                } else {
+                    self.toast("Failed to initialize system tray");
+                }
+            }
+        }
+    }
+
+    #[cfg(target_os = "linux")]
+    fn watch_tray(self: &Rc<Self>) {
+        use gtk::gio;
+
+        self.tray_group.set_visible(false);
+        let appeared = Rc::downgrade(self);
+        let vanished = Rc::downgrade(self);
+        gio::bus_watch_name(
+            gio::BusType::Session,
+            "org.kde.StatusNotifierWatcher",
+            gio::BusNameWatcherFlags::NONE,
+            move |_, _, _| {
+                if let Some(ui) = appeared.upgrade() {
+                    ui.tray_group.set_visible(true);
+                    let enabled = ui.config.borrow().drosophila.tray_enabled;
+                    if enabled {
+                        ui.enable_tray();
+                    }
+                    ui.start_hidden.set(false);
+                }
+            },
+            move |_, _| {
+                if let Some(ui) = vanished.upgrade() {
+                    ui.tray_group.set_visible(false);
+                    let had_tray = ui.tray.borrow_mut().take().is_some();
+                    if (had_tray && !ui.window.is_visible()) || ui.start_hidden.replace(false) {
+                        ui.window.present();
+                    }
+                }
+            },
+        );
+    }
+
+    #[cfg(windows)]
+    fn watch_tray(self: &Rc<Self>) {
+        let enabled = self.config.borrow().drosophila.tray_enabled;
+        if enabled {
+            self.enable_tray();
+        }
+        self.start_hidden
+            .set(self.start_hidden.get() && self.tray.borrow().is_some());
+    }
+
+    fn update_tray_state(&self) {
+        if let Some(tray) = self.tray.borrow().as_ref() {
+            tray.set_state(self.running.get(), self.transitioning.get());
+        }
+    }
+
+    fn drain_tray_events(self: &Rc<Self>) {
+        while let Ok(event) = self.tray_events.borrow().try_recv() {
+            match event {
+                TrayEvent::Show(token) => {
+                    if let Some(token) = token {
+                        self.window.set_startup_id(&token);
+                    }
+                    self.window.present();
+                }
+                TrayEvent::Toggle => {
+                    let desired = !self.running.get();
+                    self.set_ygg_switch(desired);
+                    self.on_ygg_switch(desired);
+                }
+                TrayEvent::Quit => {
+                    self.tray.borrow_mut().take();
+                    if let Some(application) = self.window.application() {
+                        application.quit();
+                    }
+                }
+                #[cfg(target_os = "linux")]
+                TrayEvent::Offline(generation) => {
+                    if self.tray_generation.get() == generation {
+                        self.tray.borrow_mut().take();
+                        if !self.window.is_visible() {
+                            self.window.present();
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     fn start_event_pump(self: &Rc<Self>) {
         let ui = self.clone();
         glib::timeout_add_local(Duration::from_millis(100), move || {
             ui.drain_events();
+            ui.drain_tray_events();
             let dialog = ui.discovery.borrow().clone();
             if let Some(dialog) = dialog {
                 dialog.flush_discovered_peers();
@@ -465,6 +629,9 @@ impl Ui {
                 if self.transitioning.get() {
                     self.show_stopped();
                 }
+                if !self.window.is_visible() {
+                    self.window.present();
+                }
                 self.show_error("Yggdrasil-ng Error", &message);
             }
             BackendEvent::PeerStatus(status) => self.apply_peer_status(&status),
@@ -485,6 +652,7 @@ impl Ui {
                 }
             }
         }
+        self.update_tray_state();
     }
 
     fn show_stopped(&self) {

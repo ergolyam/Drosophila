@@ -23,6 +23,7 @@ pub struct GuiConfig {
     pub proxy_listen: String,
     pub dns_server: String,
     pub dns_port: u16,
+    pub tray_enabled: bool,
 }
 
 impl Default for GuiConfig {
@@ -32,6 +33,7 @@ impl Default for GuiConfig {
             proxy_listen: "127.0.0.1:1080".to_owned(),
             dns_server: String::new(),
             dns_port: 53,
+            tray_enabled: false,
         }
     }
 }
@@ -44,6 +46,7 @@ struct GuiConfigWire {
     proxy_listen: Option<String>,
     dns_server: Option<String>,
     dns_port: Option<u16>,
+    tray_enabled: Option<bool>,
 }
 
 impl<'de> Deserialize<'de> for GuiConfig {
@@ -67,6 +70,7 @@ impl<'de> Deserialize<'de> for GuiConfig {
             proxy_listen: wire.proxy_listen.unwrap_or(defaults.proxy_listen),
             dns_server: wire.dns_server.unwrap_or(defaults.dns_server),
             dns_port: wire.dns_port.unwrap_or(defaults.dns_port),
+            tray_enabled: wire.tray_enabled.unwrap_or(defaults.tray_enabled),
         })
     }
 }
