@@ -28,7 +28,6 @@ The binary is `target/release/drosophila.exe`.
 
 ## Modes
 
-- System Proxy updates the current user's proxy settings without UAC.
 - Proxy exposes a local HTTP/SOCKS5 endpoint.
 - TUN uses Wintun and requests UAC elevation.
 

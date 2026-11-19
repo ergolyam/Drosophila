@@ -11,13 +11,6 @@ finish-args:
   - --share=network
   # Required to start the capability-restricted TUN worker on the host.
   - --talk-name=org.freedesktop.Flatpak
-  # Direct dconf access is required because the Settings portal is read-only.
-  - --filesystem=xdg-run/dconf
-  - --filesystem=~/.config/dconf:ro
-  - --talk-name=ca.desrt.dconf
-  - --env=DCONF_USER_CONFIG_DIR=.config/dconf
-  - --env=GIO_EXTRA_MODULES=/app/lib/gio/modules
-  - --env=GSETTINGS_BACKEND=dconf
 
 sdk-extensions:
   - org.freedesktop.Sdk.Extension.rust-stable
@@ -28,35 +21,6 @@ build-options:
     CARGO_HOME: /run/build/drosophila/cargo
 
 modules:
-  - name: dconf
-    buildsystem: meson
-    config-opts:
-      - --libdir=lib
-      - -Dbash_completion=false
-      - -Dman=false
-      - -Dvapi=false
-    cleanup:
-      - /bin
-      - /include
-      - /lib/pkgconfig
-      - /lib/systemd
-      - /libexec
-      - /share/dbus-1
-      - /share/systemd
-    sources:
-      - type: archive
-        url: https://download.gnome.org/sources/dconf/51/dconf-51.0.tar.xz
-        sha256: e65c1b7867f836faad9f9ee04acf5c5a6cae2bbc784833fe093207e0cb590248
-        x-checker-data:
-          type: gnome
-          name: dconf
-          stable-only: true
-      # Fedora's Flatpak-specific downstream patch, also used by current
-      # Flathub manifests such as Carburetor, Brave, Chrome, and Dconf Editor.
-      # https://src.fedoraproject.org/rpms/dconf
-      - type: patch
-        path: dconf-user-config-dir.patch
-
   - name: drosophila
     buildsystem: simple
     build-commands:

@@ -7,7 +7,6 @@ mod discovery;
 mod peer_probe;
 mod privileged;
 mod proxy;
-mod system_proxy;
 #[cfg(windows)]
 mod windows_console;
 

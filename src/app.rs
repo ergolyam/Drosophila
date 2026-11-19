@@ -13,16 +13,12 @@ use url::Url;
 use crate::backend::{BackendEvent, BackendHandle, NodeMode};
 use crate::config::{ConnectionMode, StoredConfig, config_path, load_or_create, save};
 use crate::discovery::DiscoveredPeer;
-use crate::system_proxy;
 
 const APP_ID: &str = "io.github.ergolyam.Drosophila";
 const PROTOCOLS: [&str; 5] = ["tcp", "tls", "ws", "wss", "quic"];
 
 pub fn run(arguments: &[String]) -> glib::ExitCode {
     configure_windows_runtime();
-    if let Err(error) = system_proxy::recover_stale() {
-        tracing::warn!(%error, "failed to recover stale system proxy settings");
-    }
     let application = adw::Application::builder().application_id(APP_ID).build();
     let (backend, events) = BackendHandle::spawn();
     let events = Rc::new(RefCell::new(Some(events)));
@@ -212,15 +208,11 @@ impl Ui {
             .set_text(&self.config.borrow().yggdrasil.private_key);
 
         let gui = self.config.borrow().drosophila.clone();
-        self.mode_row.set_model(Some(&gtk::StringList::new(&[
-            "TUN",
-            "Proxy",
-            "System Proxy",
-        ])));
+        self.mode_row
+            .set_model(Some(&gtk::StringList::new(&["TUN", "Proxy"])));
         let connection_description = [
             "TUN routes traffic directly.",
             "Proxy exposes a local endpoint.",
-            "System Proxy updates desktop settings.",
         ]
         .join(" ");
         self.connection_group
@@ -390,7 +382,7 @@ impl Ui {
         let mode = match selected {
             0 => ConnectionMode::Tun,
             1 => ConnectionMode::Proxy,
-            _ => ConnectionMode::SystemProxy,
+            _ => return,
         };
         self.config.borrow_mut().drosophila.mode = mode;
         self.update_proxy_card();
@@ -462,7 +454,6 @@ impl Ui {
                 self.ygg_card.set_expanded(true);
                 self.ygg_card.set_subtitle(match mode {
                     NodeMode::Tun => "Running",
-                    NodeMode::SystemProxy => "System proxy running",
                     NodeMode::Proxy => "Proxy running",
                 });
                 self.address_row.set_subtitle(&address);
@@ -519,7 +510,6 @@ impl Ui {
         let selected = match mode {
             ConnectionMode::Tun => 0,
             ConnectionMode::Proxy => 1,
-            ConnectionMode::SystemProxy => 2,
         };
         if self.mode_row.selected() != selected {
             self.suppress_mode_change.set(true);
@@ -531,10 +521,7 @@ impl Ui {
         let config = self.config.borrow();
         let mode = config.drosophila.mode;
         self.proxy_card.set_visible(mode != ConnectionMode::Tun);
-        self.proxy_card.set_title(match mode {
-            ConnectionMode::SystemProxy => "System Proxy Details",
-            ConnectionMode::Proxy | ConnectionMode::Tun => "Proxy Details",
-        });
+        self.proxy_card.set_title("Proxy Details");
         let listen = config.drosophila.proxy_listen.clone();
         self.proxy_card
             .set_subtitle(&format!("HTTP and SOCKS5 on {listen}"));
