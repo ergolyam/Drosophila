@@ -9,7 +9,7 @@
 - Run and monitor an embedded Yggdrasil-ng node
 - Manage peers and the private key
 - View the IPv6 address, subnet and peer status
-- Connect through System Proxy, a local HTTP/SOCKS5 proxy or TUN
+- Connect through a local HTTP/SOCKS5 proxy or TUN
 
 ## Linux
 

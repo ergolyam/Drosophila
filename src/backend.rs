@@ -16,12 +16,10 @@ use crate::config::{ConnectionMode, StoredConfig, is_flatpak};
 use crate::discovery::{DiscoveredPeer, discover_peers};
 use crate::privileged::{PrivilegedNode, RemoteEnvelope, RemoteEvent, WorkerEvent};
 use crate::proxy::UserspaceProxy;
-use crate::system_proxy::SystemProxy;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum NodeMode {
     Tun,
-    SystemProxy,
     Proxy,
 }
 
@@ -353,7 +351,6 @@ pub(crate) struct RunningNode {
     peer_key_sync: JoinHandle<()>,
     tun: Option<TunAdapter>,
     proxy: Option<UserspaceProxy>,
-    system_proxy: Option<SystemProxy>,
     address: String,
     subnet: String,
     mode: NodeMode,
@@ -362,18 +359,16 @@ pub(crate) struct RunningNode {
 struct StartedTransports {
     tun: Option<TunAdapter>,
     proxy: Option<UserspaceProxy>,
-    system_proxy: Option<SystemProxy>,
 }
 
 impl RunningNode {
     pub(crate) async fn start(mut stored: StoredConfig) -> Result<Self> {
         let mode = match stored.drosophila.mode {
-            ConnectionMode::SystemProxy => NodeMode::SystemProxy,
             ConnectionMode::Proxy => NodeMode::Proxy,
             ConnectionMode::Tun => NodeMode::Tun,
         };
         if mode == NodeMode::Tun && is_flatpak() {
-            bail!("Flatpak cannot create a host TUN interface. Select System Proxy in Settings.");
+            bail!("Flatpak cannot create a host TUN interface. Select Proxy in Settings.");
         }
 
         "none".clone_into(&mut stored.yggdrasil.admin_listen);
@@ -442,13 +437,11 @@ impl RunningNode {
                     StartedTransports {
                         tun: Some(tun),
                         proxy: None,
-                        system_proxy: None,
                     }
                 })
                 .map_err(anyhow::Error::msg)
             }
-            NodeMode::SystemProxy => start_proxy(rwc, &address, mtu, &stored, true).await,
-            NodeMode::Proxy => start_proxy(rwc, &address, mtu, &stored, false).await,
+            NodeMode::Proxy => start_proxy(rwc, &address, mtu, &stored).await,
         };
 
         let transports = match result {
@@ -486,7 +479,6 @@ impl RunningNode {
             peer_key_sync,
             tun: transports.tun,
             proxy: transports.proxy,
-            system_proxy: transports.system_proxy,
             address,
             subnet,
             mode,
@@ -540,9 +532,6 @@ impl RunningNode {
     }
 
     pub(crate) async fn close(mut self) {
-        if let Some(system_proxy) = self.system_proxy.take() {
-            system_proxy.close();
-        }
         if let Some(proxy) = self.proxy.take() {
             proxy.close().await;
         }
@@ -571,7 +560,6 @@ async fn start_proxy(
     address: &str,
     mtu: u64,
     stored: &StoredConfig,
-    configure_system: bool,
 ) -> Result<StartedTransports> {
     let listen = stored
         .drosophila
@@ -590,24 +578,10 @@ async fn start_proxy(
         dns,
     )
     .await?;
-    if !configure_system {
-        return Ok(StartedTransports {
-            tun: None,
-            proxy: Some(proxy),
-            system_proxy: None,
-        });
-    }
-    match SystemProxy::enable(listen) {
-        Ok(system_proxy) => Ok(StartedTransports {
-            tun: None,
-            proxy: Some(proxy),
-            system_proxy: Some(system_proxy),
-        }),
-        Err(error) => {
-            proxy.close().await;
-            Err(error)
-        }
-    }
+    Ok(StartedTransports {
+        tun: None,
+        proxy: Some(proxy),
+    })
 }
 
 fn parse_dns_server(host: &str, port: u16) -> Result<Option<SocketAddr>> {
