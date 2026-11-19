@@ -2,6 +2,10 @@
   <img src="./xdg/io.github.ergolyam.Drosophila.svg" width="128" alt="Drosophila logo">
   <h1>Drosophila</h1>
   <p>Drosophila is a desktop application for running, configuring and monitoring a <a href="https://github.com/Revertron/Yggdrasil-ng">Yggdrasil-ng</a> node.</p>
+
+  <a href="https://flatpark.org/apps/io.github.ergolyam.Drosophila">
+    <img src="https://flatpark.org/badges/get-it-on-flatpark.svg" alt="Get it on FlatPark" height="52">
+  </a>
 </div>
 
 ## Features
@@ -15,9 +19,22 @@
 
 ### Flatpak
 
+#### Official repository
+
+Install Drosophila from the official Flatpak repository:
+
 ```bash
-flatpak remote-add --user Drosophila https://ergolyam.github.io/Drosophila/ergolyam.flatpakrepo
+flatpak remote-add --user --if-not-exists Drosophila https://ergolyam.github.io/Drosophila/ergolyam.flatpakrepo
 flatpak install --user Drosophila io.github.ergolyam.Drosophila
+```
+
+#### FlatPark
+
+Alternatively, install the community-maintained package from [FlatPark](https://flatpark.org/apps/io.github.ergolyam.Drosophila):
+
+```bash
+flatpak remote-add --user --if-not-exists flatpark https://dl.flatpark.org/flatpark.flatpakrepo
+flatpak install --user flatpark io.github.ergolyam.Drosophila
 ```
 
 ### Binary
