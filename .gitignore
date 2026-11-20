@@ -1,6 +1,9 @@
 target/
 dist/
-*.tar
+
+# Archives
+*.tar*
+*.zip
 
 # Flatpak build outputs
 .flatpak-builder/
