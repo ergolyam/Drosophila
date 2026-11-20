@@ -96,6 +96,7 @@ struct Ui {
     private_key_regen: gtk::Button,
     connection_group: adw::PreferencesGroup,
     mode_row: adw::ComboRow,
+    #[cfg(target_os = "linux")]
     tray_group: adw::PreferencesGroup,
     tray_enabled_row: adw::SwitchRow,
     tray: RefCell<Option<Tray>>,
@@ -189,6 +190,7 @@ impl Ui {
             private_key_regen: object(&builder, "private_key_regen_icon")?,
             connection_group: object(&builder, "connection_group")?,
             mode_row: object(&builder, "mode_row")?,
+            #[cfg(target_os = "linux")]
             tray_group: object(&builder, "appearance_group")?,
             tray_enabled_row: object(&builder, "tray_enabled_row")?,
             tray: RefCell::new(None),
