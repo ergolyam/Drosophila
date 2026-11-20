@@ -193,8 +193,8 @@ mod platform {
                 .with_menu(Box::new(menu))
                 .with_icon(Icon::from_resource(2, None)?)
                 .with_tooltip("Drosophila")
-                .with_menu_on_left_click(true)
-                .with_menu_on_right_click(false)
+                .with_menu_on_left_click(false)
+                .with_menu_on_right_click(true)
                 .build()?;
             let icon_id = icon.id().clone();
             let open_id = open.id().clone();
@@ -205,7 +205,7 @@ mod platform {
                     while let Ok(event) = TrayIconEvent::receiver().try_recv() {
                         if let TrayIconEvent::Click {
                             id,
-                            button: MouseButton::Right,
+                            button: MouseButton::Left,
                             button_state: MouseButtonState::Up,
                             ..
                         } = event
