@@ -20,6 +20,14 @@
                 <property name="title">Appearance</property>
 
                 <child>
+                  <object class="AdwSwitchRow" id="background_mode_row">
+                    <property name="title">Background Mode</property>
+                    <property name="subtitle">Closing the window hides it. Open the app again to show it.</property>
+                    <property name="active">False</property>
+                  </object>
+                </child>
+
+                <child>
                   <object class="AdwSwitchRow" id="tray_enabled_row">
                     <property name="title">System Tray</property>
                     <property name="active">False</property>

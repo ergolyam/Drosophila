@@ -24,6 +24,7 @@ pub struct GuiConfig {
     pub dns_server: String,
     pub dns_port: u16,
     pub tray_enabled: bool,
+    pub background_enabled: bool,
 }
 
 impl Default for GuiConfig {
@@ -34,6 +35,7 @@ impl Default for GuiConfig {
             dns_server: String::new(),
             dns_port: 53,
             tray_enabled: false,
+            background_enabled: false,
         }
     }
 }
@@ -47,6 +49,7 @@ struct GuiConfigWire {
     dns_server: Option<String>,
     dns_port: Option<u16>,
     tray_enabled: Option<bool>,
+    background_enabled: Option<bool>,
 }
 
 impl<'de> Deserialize<'de> for GuiConfig {
@@ -71,6 +74,9 @@ impl<'de> Deserialize<'de> for GuiConfig {
             dns_server: wire.dns_server.unwrap_or(defaults.dns_server),
             dns_port: wire.dns_port.unwrap_or(defaults.dns_port),
             tray_enabled: wire.tray_enabled.unwrap_or(defaults.tray_enabled),
+            background_enabled: wire
+                .background_enabled
+                .unwrap_or(defaults.background_enabled),
         })
     }
 }

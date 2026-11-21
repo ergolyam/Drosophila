@@ -18,7 +18,7 @@ use crate::tray::{Tray, TrayEvent};
 const APP_ID: &str = "io.github.ergolyam.Drosophila";
 const PROTOCOLS: [&str; 5] = ["tcp", "tls", "ws", "wss", "quic"];
 
-pub fn run(arguments: &[String], start_in_tray: bool) -> glib::ExitCode {
+pub fn run(arguments: &[String], start_in_background: bool) -> glib::ExitCode {
     configure_windows_runtime();
     let application = adw::Application::builder().application_id(APP_ID).build();
     let (backend, events) = BackendHandle::spawn();
@@ -38,9 +38,9 @@ pub fn run(arguments: &[String], start_in_tray: bool) -> glib::ExitCode {
             let Some(events) = events.borrow_mut().take() else {
                 return;
             };
-            match Ui::new(application, backend.clone(), events, start_in_tray) {
+            match Ui::new(application, backend.clone(), events, start_in_background) {
                 Ok(ui) => {
-                    if !ui.start_hidden.get() {
+                    if !ui.start_hidden {
                         ui.window.present();
                     }
                 }
@@ -96,14 +96,13 @@ struct Ui {
     private_key_regen: gtk::Button,
     connection_group: adw::PreferencesGroup,
     mode_row: adw::ComboRow,
-    #[cfg(target_os = "linux")]
-    tray_group: adw::PreferencesGroup,
+    background_mode_row: adw::SwitchRow,
     tray_enabled_row: adw::SwitchRow,
     tray: RefCell<Option<Tray>>,
     tray_generation: Cell<u64>,
     tray_sender: Sender<TrayEvent>,
     tray_events: RefCell<Receiver<TrayEvent>>,
-    start_hidden: Cell<bool>,
+    start_hidden: bool,
     proxy_card: adw::ExpanderRow,
     proxy_listen_row: adw::EntryRow,
     proxy_dns_ip_row: adw::EntryRow,
@@ -131,7 +130,7 @@ impl Ui {
         application: &adw::Application,
         backend: BackendHandle,
         events: Receiver<BackendEvent>,
-        start_in_tray: bool,
+        start_in_background: bool,
     ) -> anyhow::Result<Rc<Self>> {
         let config_path = config_path()?;
         let config = load_or_create(&config_path)?;
@@ -179,7 +178,7 @@ impl Ui {
         }
 
         let (tray_sender, tray_events) = mpsc::channel();
-        let start_hidden = start_in_tray && config.drosophila.tray_enabled;
+        let start_hidden = start_in_background && config.drosophila.background_enabled;
         let ui = Rc::new(Self {
             window,
             toast_overlay: object(&builder, "toast_overlay")?,
@@ -190,14 +189,13 @@ impl Ui {
             private_key_regen: object(&builder, "private_key_regen_icon")?,
             connection_group: object(&builder, "connection_group")?,
             mode_row: object(&builder, "mode_row")?,
-            #[cfg(target_os = "linux")]
-            tray_group: object(&builder, "appearance_group")?,
+            background_mode_row: object(&builder, "background_mode_row")?,
             tray_enabled_row: object(&builder, "tray_enabled_row")?,
             tray: RefCell::new(None),
             tray_generation: Cell::new(0),
             tray_sender,
             tray_events: RefCell::new(tray_events),
-            start_hidden: Cell::new(start_hidden),
+            start_hidden,
             proxy_card: object(&builder, "proxy_card")?,
             proxy_listen_row: object(&builder, "proxy_listen_row")?,
             proxy_dns_ip_row: object(&builder, "proxy_dns_ip_row")?,
@@ -246,7 +244,9 @@ impl Ui {
         .join(" ");
         self.connection_group
             .set_description(Some(&connection_description));
+        self.background_mode_row.set_active(gui.background_enabled);
         self.tray_enabled_row.set_active(gui.tray_enabled);
+        self.tray_enabled_row.set_sensitive(gui.background_enabled);
         self.set_connection_mode(gui.mode);
         self.proxy_listen_row.set_text(&gui.proxy_listen);
         self.proxy_dns_ip_row.set_text(&gui.dns_server);
@@ -262,12 +262,31 @@ impl Ui {
             let weak = Rc::downgrade(self);
             move |window| {
                 if let Some(ui) = weak.upgrade()
-                    && ui.tray.borrow().is_some()
+                    && ui.config.borrow().drosophila.background_enabled
                 {
                     window.set_visible(false);
                     return glib::Propagation::Stop;
                 }
                 glib::Propagation::Proceed
+            }
+        });
+        self.background_mode_row.connect_active_notify({
+            let weak = Rc::downgrade(self);
+            move |row| {
+                if let Some(ui) = weak.upgrade() {
+                    let enabled = row.is_active();
+                    ui.config.borrow_mut().drosophila.background_enabled = enabled;
+                    ui.tray_enabled_row.set_sensitive(enabled);
+                    if enabled
+                        && ui.tray_enabled_row.is_active()
+                        && ui.tray_enabled_row.is_visible()
+                    {
+                        ui.enable_tray();
+                    } else if !enabled {
+                        ui.tray.borrow_mut().take();
+                    }
+                    ui.persist_config();
+                }
             }
         });
         self.tray_enabled_row.connect_active_notify({
@@ -382,15 +401,31 @@ impl Ui {
             }
         });
 
-        let about: gtk::Button = object(builder, "about_btn").unwrap();
-        about.connect_clicked({
+        self.connect_menu_actions();
+    }
+
+    fn connect_menu_actions(self: &Rc<Self>) {
+        let application = self.window.application().unwrap();
+        let about = gtk::gio::SimpleAction::new("about", None);
+        about.connect_activate({
             let weak = Rc::downgrade(self);
-            move |_| {
+            move |_, _| {
                 if let Some(ui) = weak.upgrade() {
                     ui.open_about();
                 }
             }
         });
+        application.add_action(&about);
+        let quit = gtk::gio::SimpleAction::new("quit", None);
+        quit.connect_activate({
+            let weak = Rc::downgrade(self);
+            move |_, _| {
+                if let Some(ui) = weak.upgrade() {
+                    ui.quit();
+                }
+            }
+        });
+        application.add_action(&quit);
     }
 
     fn connect_copy_row(self: &Rc<Self>, row: &adw::ActionRow) {
@@ -490,11 +525,7 @@ impl Ui {
             Err(error) => {
                 tracing::warn!(%error, "failed to initialize system tray");
                 self.tray_enabled_row.set_active(false);
-                if self.start_hidden.replace(false) {
-                    self.window.present();
-                } else {
-                    self.toast("Failed to initialize system tray");
-                }
+                self.toast("Failed to initialize system tray");
             }
         }
     }
@@ -503,7 +534,7 @@ impl Ui {
     fn watch_tray(self: &Rc<Self>) {
         use gtk::gio;
 
-        self.tray_group.set_visible(false);
+        self.tray_enabled_row.set_visible(false);
         let appeared = Rc::downgrade(self);
         let vanished = Rc::downgrade(self);
         gio::bus_watch_name(
@@ -512,21 +543,20 @@ impl Ui {
             gio::BusNameWatcherFlags::NONE,
             move |_, _, _| {
                 if let Some(ui) = appeared.upgrade() {
-                    ui.tray_group.set_visible(true);
-                    let enabled = ui.config.borrow().drosophila.tray_enabled;
+                    ui.tray_enabled_row.set_visible(true);
+                    let enabled = {
+                        let config = ui.config.borrow();
+                        config.drosophila.background_enabled && config.drosophila.tray_enabled
+                    };
                     if enabled {
                         ui.enable_tray();
                     }
-                    ui.start_hidden.set(false);
                 }
             },
             move |_, _| {
                 if let Some(ui) = vanished.upgrade() {
-                    ui.tray_group.set_visible(false);
-                    let had_tray = ui.tray.borrow_mut().take().is_some();
-                    if (had_tray && !ui.window.is_visible()) || ui.start_hidden.replace(false) {
-                        ui.window.present();
-                    }
+                    ui.tray_enabled_row.set_visible(false);
+                    ui.tray.borrow_mut().take();
                 }
             },
         );
@@ -534,12 +564,13 @@ impl Ui {
 
     #[cfg(windows)]
     fn watch_tray(self: &Rc<Self>) {
-        let enabled = self.config.borrow().drosophila.tray_enabled;
+        let enabled = {
+            let config = self.config.borrow();
+            config.drosophila.background_enabled && config.drosophila.tray_enabled
+        };
         if enabled {
             self.enable_tray();
         }
-        self.start_hidden
-            .set(self.start_hidden.get() && self.tray.borrow().is_some());
     }
 
     fn update_tray_state(&self) {
@@ -562,22 +593,21 @@ impl Ui {
                     self.set_ygg_switch(desired);
                     self.on_ygg_switch(desired);
                 }
-                TrayEvent::Quit => {
-                    self.tray.borrow_mut().take();
-                    if let Some(application) = self.window.application() {
-                        application.quit();
-                    }
-                }
+                TrayEvent::Quit => self.quit(),
                 #[cfg(target_os = "linux")]
                 TrayEvent::Offline(generation) => {
                     if self.tray_generation.get() == generation {
                         self.tray.borrow_mut().take();
-                        if !self.window.is_visible() {
-                            self.window.present();
-                        }
                     }
                 }
             }
+        }
+    }
+
+    fn quit(&self) {
+        self.tray.borrow_mut().take();
+        if let Some(application) = self.window.application() {
+            application.quit();
         }
     }
 

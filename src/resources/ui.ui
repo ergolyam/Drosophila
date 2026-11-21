@@ -3,6 +3,21 @@
   <requires lib="gtk" version="4.12"/>
   <requires lib="adw" version="1.6"/>
 
+  <menu id="main_menu">
+    <section>
+      <item>
+        <attribute name="label" translatable="yes">About Drosophila</attribute>
+        <attribute name="action">app.about</attribute>
+      </item>
+    </section>
+    <section>
+      <item>
+        <attribute name="label" translatable="yes">Quit</attribute>
+        <attribute name="action">app.quit</attribute>
+      </item>
+    </section>
+  </menu>
+
   <object class="AdwApplicationWindow" id="main_window">
     <property name="accessible-role">meter</property>
     <property name="title">Drosophila</property>
@@ -24,10 +39,15 @@
                 </child>
 
                 <child type="end">
-                  <object class="GtkButton" id="about_btn">
-                    <property name="icon-name">help-about-symbolic</property>
-                    <property name="tooltip-text" translatable="yes">About</property>
+                  <object class="GtkMenuButton" id="main_menu_btn">
+                    <property name="icon-name">open-menu-symbolic</property>
+                    <property name="tooltip-text" translatable="yes">Main Menu</property>
                     <property name="css-classes">flat</property>
+                    <property name="popover">
+                      <object class="GtkPopoverMenu" id="main_menu_popover">
+                        <property name="menu-model">main_menu</property>
+                      </object>
+                    </property>
                   </object>
                 </child>
 

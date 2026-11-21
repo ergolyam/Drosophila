@@ -73,15 +73,15 @@ fn main() -> gtk::glib::ExitCode {
         return gtk::glib::ExitCode::FAILURE;
     }
 
-    let mut start_in_tray = false;
+    let mut start_in_background = false;
     let mut filtered_arguments = Vec::with_capacity(arguments.len());
     for (index, argument) in arguments.into_iter().enumerate() {
-        if index != 0 && argument == "--start-in-tray" {
-            start_in_tray = true;
+        if index != 0 && argument == "--start-in-background" {
+            start_in_background = true;
         } else {
             filtered_arguments.push(argument);
         }
     }
 
-    app::run(&filtered_arguments, start_in_tray)
+    app::run(&filtered_arguments, start_in_background)
 }
