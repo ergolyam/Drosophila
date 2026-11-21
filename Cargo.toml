@@ -10,7 +10,6 @@ build = "build.rs"
 
 [dependencies]
 anyhow = "1"
-directories = "6"
 futures = "0.3"
 gtk = { package = "gtk4", version = "0.11", features = ["v4_12"] }
 adw = { package = "libadwaita", version = "0.9", features = ["v1_6"] }
@@ -29,12 +28,17 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 url = "2"
 yggdrasil = { git = "https://github.com/Revertron/Yggdrasil-ng.git", rev = "c3a3aa65e2eb14687f087adae9e0a35a7d7ce915", default-features = false, features = ["tun", "ws", "quic"] }
 
+[target.'cfg(not(windows))'.dependencies]
+directories = "6"
+
 [target.'cfg(target_os = "linux")'.dependencies]
 capctl = "0.2"
+ksni = { version = "0.3.7", default-features = false, features = ["async-io", "blocking"] }
 nix = { version = "0.30", default-features = false, features = ["user"] }
 
 [target.'cfg(windows)'.dependencies]
 runas = "1.2"
+tray-icon = { version = "0.26.1", default-features = false }
 windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_System_Console"] }
 
 [target.'cfg(windows)'.build-dependencies]

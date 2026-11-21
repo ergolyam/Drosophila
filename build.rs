@@ -1,5 +1,6 @@
 fn main() {
     println!("cargo:rerun-if-changed=xdg/io.github.ergolyam.Drosophila.ico");
+    println!("cargo:rerun-if-changed=xdg/io.github.ergolyam.Drosophila-tray.ico");
 
     #[cfg(windows)]
     {
@@ -22,6 +23,7 @@ fn main() {
 
         winresource::WindowsResource::new()
             .set_icon("xdg/io.github.ergolyam.Drosophila.ico")
+            .set_icon_with_id("xdg/io.github.ergolyam.Drosophila-tray.ico", "2")
             .set_manifest(manifest)
             .compile()
             .expect("failed to compile Windows resources");

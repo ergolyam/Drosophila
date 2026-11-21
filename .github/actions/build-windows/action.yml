@@ -64,6 +64,7 @@ runs:
         cp -r "${MINGW_PREFIX}/share/icons" "${bundle_dir}/share/"
         install -Dm644 xdg/io.github.ergolyam.Drosophila.svg \
           "${bundle_dir}/share/icons/hicolor/scalable/apps/io.github.ergolyam.Drosophila.svg"
+        gtk4-update-icon-cache -f "${bundle_dir}/share/icons/hicolor"
         cp -r "${MINGW_PREFIX}/share/libadwaita" "${bundle_dir}/share/" 2>/dev/null || true
         cp -r "${MINGW_PREFIX}/lib/gdk-pixbuf-2.0/2.10.0/loaders" "${bundle_dir}/lib/gdk-pixbuf-2.0/2.10.0/"
 
