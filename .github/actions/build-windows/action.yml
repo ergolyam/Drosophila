@@ -58,6 +58,7 @@ runs:
         bundle_dir="dist/${PROJECT_NAME}"
         mkdir -p "${bundle_dir}/lib/gdk-pixbuf-2.0/2.10.0" "${bundle_dir}/share"
         cp "target/release/drosophila.exe" "${bundle_dir}/Drosophila.exe"
+        cp "${MINGW_PREFIX}/bin/gdbus.exe" "${bundle_dir}/"
         cp wintun.dll license readme.md "${bundle_dir}/"
 
         cp -r "${MINGW_PREFIX}/share/glib-2.0" "${bundle_dir}/share/"
@@ -70,7 +71,7 @@ runs:
 
         set -o pipefail
         ntldd -R -D "${MINGW_PREFIX}/bin" \
-          "${bundle_dir}/Drosophila.exe" \
+          "${bundle_dir}/Drosophila.exe" "${bundle_dir}/gdbus.exe" \
           "${bundle_dir}/lib/gdk-pixbuf-2.0/2.10.0/loaders/"*.dll \
           | awk '/=> .*\\(ucrt64|clangarm64)\\/ { print $3; found = 1 } END { if (!found) exit 1 }' \
           | while IFS= read -r windows_dll_path; do
