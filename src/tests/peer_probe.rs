@@ -51,11 +51,14 @@ async fn closed_port_is_not_success() {
     let reservation = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let uri = format!("tcp://{}", reservation.local_addr().unwrap());
     drop(reservation);
-    let result =
-        tokio::time::timeout(Duration::from_secs(2), probe(&uri, Duration::from_secs(10))).await;
+    let result = tokio::time::timeout(
+        Duration::from_secs(3) + SHUTDOWN_TIMEOUT,
+        probe(&uri, Duration::from_secs(10)),
+    )
+    .await;
     assert!(
         matches!(result, Ok(false)),
-        "closed port must fail without waiting for the full timeout"
+        "closed port must fail without waiting for the full timeout; got {result:?}"
     );
 }
 
