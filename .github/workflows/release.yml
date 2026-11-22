@@ -12,7 +12,7 @@ env:
   PROJECT_NAME: ${{ github.event.repository.name }}
 
 jobs:
-  build:
+  builds:
     uses: ./.github/workflows/build.yml
     with:
       flatpak: repo
@@ -20,7 +20,7 @@ jobs:
       GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
 
   publish-flatpak:
-    needs: build
+    needs: builds
     runs-on: ubuntu-latest
     container:
       image: ghcr.io/flathub-infra/flatpak-github-actions:freedesktop-24.08
@@ -101,7 +101,7 @@ jobs:
           force_orphan: true
 
   release:
-    needs: build
+    needs: builds
     runs-on: ubuntu-latest
 
     steps:

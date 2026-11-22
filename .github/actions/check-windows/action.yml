@@ -1,0 +1,31 @@
+name: Check Windows
+description: Running automated tests on Windows
+
+runs:
+  using: composite
+  steps:
+    - name: Checkout code
+      uses: actions/checkout@v6
+      with:
+        path: source
+
+    - name: Setup MSYS2
+      uses: msys2/setup-msys2@v2
+      with:
+        msystem: UCRT64
+        update: true
+        install: >-
+          mingw-w64-ucrt-x86_64-libadwaita
+          mingw-w64-ucrt-x86_64-ntldd
+          mingw-w64-ucrt-x86_64-pkgconf
+          mingw-w64-ucrt-x86_64-rust
+
+    - name: Check formatting
+      working-directory: source
+      shell: msys2 {0}
+      run: cargo fmt --all --check
+
+    - name: Run Test
+      working-directory: source
+      shell: msys2 {0}
+      run: cargo test --all-targets --locked
