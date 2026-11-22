@@ -33,7 +33,7 @@ runs:
           --workdir /source \
           --env PROJECT_NAME \
           --env ARCH_TYPE \
-          docker.io/library/rust:1.97.0-slim-trixie \
+          docker.io/library/rust:1.100-slim-trixie \
           bash -euxo pipefail -c '
             apt-get update
             DEBIAN_FRONTEND=noninteractive apt-get install --yes --no-install-recommends \
@@ -56,7 +56,7 @@ runs:
           --workdir /source \
           --env PROJECT_NAME \
           --env ARCH_TYPE \
-          docker.io/library/rust:1.97.0-alpine3.24 \
+          docker.io/library/rust:1.100-alpine3.24 \
           sh -eux -c '
             apk add --no-cache libadwaita-dev
             RUSTFLAGS="-C target-feature=-crt-static" \
