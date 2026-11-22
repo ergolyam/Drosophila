@@ -17,3 +17,16 @@ jobs:
 
       - name: Check linux
         uses: ./.github/actions/check-linux
+
+  check-windows:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          sparse-checkout: .github/actions
+          sparse-checkout-cone-mode: false
+
+      - name: Check windows
+        uses: ./.github/actions/check-windows
