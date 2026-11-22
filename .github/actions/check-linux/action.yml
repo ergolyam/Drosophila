@@ -25,4 +25,6 @@ runs:
     - name: Run Test
       working-directory: source
       shell: sh
+      env:
+        RUSTFLAGS: -C target-feature=-crt-static
       run: cargo test --all-targets --locked
