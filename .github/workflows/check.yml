@@ -6,7 +6,7 @@ on:
 jobs:
   check-linux:
     runs-on: ubuntu-latest
-    container: docker.io/library/rust:1.97.0-alpine3.24
+    container: docker.io/library/rust:1.100-alpine3.24
 
     steps:
       - name: Checkout code
