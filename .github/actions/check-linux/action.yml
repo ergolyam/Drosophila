@@ -1,0 +1,28 @@
+name: Check Linux
+description: Running automated tests on Linux
+
+runs:
+  using: composite
+  steps:
+    - name: Checkout code
+      uses: actions/checkout@v6
+      with:
+        path: source
+
+    - name: Install dependencies
+      shell: ash
+      run: apk add --no-cache git libadwaita-dev
+
+    - name: Install rustfmt
+      shell: ash
+      run: rustup component add rustfmt
+
+    - name: Check formatting
+      working-directory: source
+      shell: ash
+      run: cargo fmt --all --check
+
+    - name: Run Test
+      working-directory: source
+      shell: ash
+      run: cargo test --all-targets --locked

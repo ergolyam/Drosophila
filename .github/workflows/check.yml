@@ -1,0 +1,19 @@
+name: Check
+
+on:
+  workflow_call:
+
+jobs:
+  check-linux:
+    runs-on: ubuntu-latest
+    container: docker.io/library/rust:1.97.0-alpine3.24
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          sparse-checkout: .github/actions
+          sparse-checkout-cone-mode: false
+
+      - name: Check linux
+        uses: ./.github/actions/check-linux
